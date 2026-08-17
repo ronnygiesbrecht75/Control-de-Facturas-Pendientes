@@ -1,0 +1,18 @@
+{
+  "short_name": "WalterPagos",
+  "name": "Comercial Walter - Control de Pagos",
+  "description": "Sistema de Control de Pagos y Facturación 100% Offline para Comercial Walter.",
+  "icons": [
+    {
+      "src": "icon.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "./",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "display": "standalone",
+  "orientation": "any"
+}

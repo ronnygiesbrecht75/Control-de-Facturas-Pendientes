@@ -1,0 +1,94 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
+@import "tailwindcss";
+
+@variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-display: "Space Grotesk", sans-serif;
+  
+  --color-primary-gold: #F2AE1C;
+  --color-primary-gold-dark: #D9960B;
+
+  --color-slate-50: var(--slate-50);
+  --color-slate-100: var(--slate-100);
+  --color-slate-200: var(--slate-200);
+  --color-slate-300: var(--slate-300);
+  --color-slate-400: var(--slate-400);
+  --color-slate-500: var(--slate-500);
+  --color-slate-600: var(--slate-600);
+  --color-slate-700: var(--slate-700);
+  --color-slate-800: var(--slate-800);
+  --color-slate-900: var(--slate-900);
+  --color-slate-950: var(--slate-950);
+}
+
+:root {
+  --slate-50: #ffffff;      /* pure white app background and card panels as requested */
+  --slate-100: #fafafa;     /* pristine neutral gray tags/badges */
+  --slate-200: #f4f4f5;     /* sleek light-gray border */
+  --slate-300: #e4e4e7;     /* mid border gray */
+  --slate-400: #a1a1aa;     /* neutral silver grey for placeholders */
+  --slate-500: #71717a;     /* body/secondary label gray */
+  --slate-600: #52525b;     /* neutral content text */
+  --slate-700: #3f3f46;     /* deep gray */
+  --slate-800: #27272a;     /* prominent text on white */
+  --slate-900: #181c24;     /* header content details */
+  --slate-950: #0f0f11;     /* deep bold contrast */
+}
+
+/* Safe area support for mobile devices (status bar notch and navigation bar) */
+body {
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+.dark {
+  --slate-50: #36363a;      /* nested blocks, inner panels & inputs - lighter dark gray */
+  --slate-100: #ffffff;     /* crisp high-contrast pure white text */
+  --slate-200: #f4f4f5;     /* white/bright accents */
+  --slate-300: #e4e4e7;     /* secondary light text details */
+  --slate-400: #a1a1aa;     /* grey labels / placeholder text */
+  --slate-500: #e4e4e7;     /* lighter slate text details */
+  --slate-600: #424248;     
+  --slate-700: #424248;     /* visible borders in dark mode - lighter gray, no blue */
+  --slate-800: #2a2a2e;     /* card backgrounds (cozy, readable lighter "gris negro" - 0% blue!) */
+  --slate-900: #1c1c1f;     /* outer deep app background (refined elegant graphite/charcoal) */
+  --slate-950: #151517;     /* input panel bases */
+}
+
+/* Custom scrollbars for a beautiful tabular interface */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #475569;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Fade in animation styles */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out forwards;
+}

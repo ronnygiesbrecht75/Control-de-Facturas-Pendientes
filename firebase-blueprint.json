@@ -1,0 +1,45 @@
+{
+  "entities": {
+    "invoices": {
+      "title": "Invoices",
+      "description": "Registered invoices and payment records",
+      "properties": {
+        "id": { "type": "string" },
+        "category": { "type": "string" },
+        "clientName": { "type": "string" },
+        "sucursal": { "type": "string" },
+        "caja": { "type": "string" },
+        "numero": { "type": "string" },
+        "amount": { "type": "number" },
+        "invoiceDate": { "type": "string" },
+        "terms": { "type": "number" },
+        "paid": { "type": "boolean" },
+        "paidAmount": { "type": "number" },
+        "paymentDate": { "type": "string" },
+        "paymentMethod": { "type": "string" },
+        "paymentDetails": { "type": "object" }
+      },
+      "required": ["id", "category", "clientName", "sucursal", "caja", "numero", "amount", "invoiceDate", "paid"]
+    },
+    "clients": {
+      "title": "Clients",
+      "description": "Clients catalog",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name"]
+    },
+    "settings": {
+      "title": "Settings",
+      "description": "App settings",
+      "properties": {
+        "darkMode": { "type": "boolean" },
+        "passwordEnabled": { "type": "boolean" },
+        "username": { "type": "string" },
+        "passwordHash": { "type": "string" }
+      }
+    }
+  }
+}
