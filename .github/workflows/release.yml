@@ -1,0 +1,160 @@
+name: Publicar Release Automatico (Windows y Android)
+
+on:
+  push:
+    tags:
+      - 'v*'
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+    inputs:
+      version_tag:
+        description: 'Etiqueta de versión (ej: v1.2.0). Dejar vacío para usar la versión de package.json'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    name: Compilar Instalador Windows (.exe)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout del repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Instalar dependencias
+        run: npm install --legacy-peer-deps
+
+      - name: Compilar aplicación Web
+        run: npm run build
+
+      - name: Compilar instalador de Windows (Electron)
+        run: npx electron-builder --win --publish never
+
+      - name: Subir artefacto Windows (.exe)
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: dist-electron/*.exe
+          retention-days: 1
+
+  build-android:
+    name: Compilar APK Android (.apk)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout del repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Configurar Java JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Instalar dependencias
+        run: npm install --legacy-peer-deps
+
+      - name: Compilar aplicación Web
+        run: npm run build
+
+      - name: Agregar y sincronizar plataforma Android
+        run: |
+          npx cap add android || true
+          npx cap sync android
+
+      - name: Dar permisos de ejecución a Gradle
+        run: chmod +x ./android/gradlew || true
+
+      - name: Compilar APK con Gradle
+        working-directory: ./android
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Subir artefacto Android (.apk)
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: android/app/build/outputs/apk/debug/*.apk
+          retention-days: 1
+
+  publish-release:
+    name: Publicar GitHub Release
+    needs: [build-windows, build-android]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout del repositorio
+        uses: actions/checkout@v4
+
+      - name: Obtener versión del proyecto
+        id: get_version
+        run: |
+          if [ -n "${{ github.event.inputs.version_tag }}" ]; then
+            TAG_NAME="${{ github.event.inputs.version_tag }}"
+          elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            TAG_NAME="${GITHUB_REF#refs/tags/}"
+          else
+            PKG_VERSION=$(node -p "require('./package.json').version")
+            TAG_NAME="v${PKG_VERSION}"
+          fi
+          echo "tag_name=${TAG_NAME}" >> $GITHUB_OUTPUT
+          echo "version=${TAG_NAME#v}" >> $GITHUB_OUTPUT
+
+      - name: Descargar instalador de Windows
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-installer
+          path: ./release-assets
+
+      - name: Descargar APK de Android
+        uses: actions/download-artifact@v4
+        with:
+          name: android-apk
+          path: ./release-assets
+
+      - name: Organizar y renombrar archivos
+        run: |
+          cd ./release-assets
+          VERSION="${{ steps.get_version.outputs.version }}"
+          if [ -f "app-debug.apk" ]; then
+            mv app-debug.apk "Control-de-Pagos-v${VERSION}.apk"
+          fi
+          ls -la
+
+      - name: Crear o Actualizar Release Oficial en GitHub
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.get_version.outputs.tag_name }}
+          name: "Control de Pagos ${{ steps.get_version.outputs.tag_name }}"
+          body: |
+            ### 🚀 Control de Pagos - Versión ${{ steps.get_version.outputs.tag_name }}
+            
+            #### 📦 Archivos descargables adjuntos:
+            * **Windows (.exe):** Instalador para PC / Escritorio.
+            * **Android (.apk):** Instalador para teléfono o tablet.
+            
+            #### ✨ Novedades de la versión:
+            * Asistente de Cobro Repartidor Móvil con dictado por voz y Gemini IA.
+            * Sistema de Actualización Automática integrado.
+            * Control de facturas, cobranzas, cheques al día y cheques diferidos.
+            * Soporte para moneda Guaraníes (PYG) y exportación a PDF y Excel.
+          files: |
+            ./release-assets/*
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
