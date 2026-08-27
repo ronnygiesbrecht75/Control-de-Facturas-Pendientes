@@ -58,6 +58,8 @@ import RegistrarPagos from './components/RegistrarPagos';
 import Clientes from './components/Clientes';
 import Ajustes from './components/Ajustes';
 import CobroMovilRepartidor from './components/CobroMovilRepartidor';
+import UpdateNotificationToast from './components/UpdateNotificationToast';
+import { getUpdateConfig, checkForAppUpdates, UpdateInfo } from './utils/autoUpdater';
 
 // Icons for navigation sidebar - all from lucide-react as required
 import { 
@@ -182,6 +184,29 @@ export default function App() {
   const [backupModalOpen, setBackupModalOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importNotice, setImportNotice] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
+
+  // Automatic Updater state
+  const [availableUpdate, setAvailableUpdate] = useState<UpdateInfo | null>(null);
+
+  // Auto-check for updates on app launch if enabled
+  useEffect(() => {
+    const updateConf = getUpdateConfig();
+    if (updateConf.autoCheckOnStartup) {
+      // Run after slight delay to allow smooth initial UI render
+      const timer = setTimeout(() => {
+        checkForAppUpdates()
+          .then((info) => {
+            if (info && info.hasUpdate) {
+              setAvailableUpdate(info);
+            }
+          })
+          .catch((err) => {
+            console.warn('Silent update check skipped:', err);
+          });
+      }, 2500);
+      return () => clearTimeout(timer);
+    }
+  }, []);
 
   // Sync state changes with local storage
   useEffect(() => {
@@ -783,14 +808,22 @@ export default function App() {
                 <button
                   id="sidebar-tab-ajustes"
                   onClick={() => setCurrentTab('ajustes')}
-                  className={`w-full flex items-center gap-3 p-3 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer ${
+                  className={`w-full flex items-center justify-between p-3 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer ${
                     currentTab === 'ajustes'
                       ? 'bg-[#0f172a] text-white shadow-md'
                       : 'text-slate-900 hover:bg-amber-600/30 hover:text-slate-950'
                   }`}
                 >
-                  <Settings2 className="w-4 h-4" />
-                  <span>Ajustes</span>
+                  <div className="flex items-center gap-3">
+                    <Settings2 className="w-4 h-4" />
+                    <span>Ajustes</span>
+                  </div>
+                  {availableUpdate?.hasUpdate && (
+                    <span className="flex h-2 w-2 relative">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
+                    </span>
+                  )}
                 </button>
               </div>
             )}
@@ -1279,6 +1312,15 @@ export default function App() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Floating Update Notification Toast */}
+      {availableUpdate && availableUpdate.hasUpdate && (
+        <UpdateNotificationToast
+          updateInfo={availableUpdate}
+          onOpenUpdater={() => setCurrentTab('ajustes')}
+          onDismiss={() => setAvailableUpdate(null)}
+        />
       )}
 
     </div>

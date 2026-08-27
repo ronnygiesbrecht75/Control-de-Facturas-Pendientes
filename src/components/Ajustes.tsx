@@ -31,6 +31,7 @@ import {
 } from 'lucide-react';
 import ConfirmModal from './ConfirmModal';
 import UserModal from './UserModal';
+import AutoUpdaterSection from './AutoUpdaterSection';
 import { 
   isBiometricsSupported, 
   getStoredBiometrics, 
@@ -67,7 +68,7 @@ export default function Ajustes({
   const [passwordValue, setPasswordValue] = useState(settings.passwordHash || '');
   
   const [showPassword, setShowPassword] = useState(false);
-  const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [notification, setNotification] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
   const [confirmClearInvoices, setConfirmClearInvoices] = useState(false);
   const [confirmResetApp, setConfirmResetApp] = useState(false);
 
@@ -186,6 +187,8 @@ export default function Ajustes({
         <div className={`p-4 rounded-lg text-sm border flex items-center gap-2 ${
           notification.type === 'success'
             ? 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-800 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800'
+            : notification.type === 'info'
+            ? 'bg-amber-50 dark:bg-amber-950/20 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800'
             : 'bg-rose-50 dark:bg-rose-950/20 text-rose-800 dark:text-rose-400 border-rose-200 dark:border-rose-800'
         }`}>
           <span>{notification.message}</span>
@@ -523,7 +526,10 @@ export default function Ajustes({
         </div>
       </div>
 
-      {/* Bloque 3: Mantenimiento y Datos */}
+      {/* Bloque 3: Actualizador Automático */}
+      <AutoUpdaterSection onNotify={setNotification} />
+
+      {/* Bloque 4: Mantenimiento y Datos */}
       <div className="bg-white dark:bg-slate-800 rounded-xl shadow-md border border-slate-200 dark:border-slate-700 overflow-hidden text-left">
         <div className="bg-slate-50 dark:bg-slate-900/50 text-slate-800 dark:text-slate-100 px-5 py-4 flex items-center gap-2.5 border-b border-slate-200 dark:border-slate-700">
           <Database className="w-5 h-5 text-amber-500" />

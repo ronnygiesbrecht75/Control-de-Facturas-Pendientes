@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, shell } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -9,7 +9,7 @@ function createWindow() {
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
-    title: 'Control de Pagos v1.0',
+    title: 'Control de Pagos v1.2',
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -18,6 +18,15 @@ function createWindow() {
 
   // Load the built index.html from dist
   win.loadFile(path.join(__dirname, 'dist/index.html'));
+
+  // Open external links in default browser
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('https:') || url.startsWith('http:')) {
+      shell.openExternal(url);
+      return { action: 'deny' };
+    }
+    return { action: 'allow' };
+  });
 
   // Hide default menu bar (can be toggled on with Alt)
   win.setMenuBarVisibility(false);
