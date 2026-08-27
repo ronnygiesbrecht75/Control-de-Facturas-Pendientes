@@ -669,7 +669,7 @@ export default function Ajustes({
       <div className="text-center py-4 select-none">
         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-xs font-semibold border border-slate-200 dark:border-slate-700">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-          Control de Pagos — Versión 1.1
+          Control de Pagos — Versión 1.2
         </span>
       </div>
 

@@ -816,7 +816,7 @@ export default function App() {
 
           <div className="text-center select-none">
             <div className="text-[10px] font-black tracking-wider text-amber-950 bg-amber-400/40 py-0.5 px-2.5 rounded-full inline-block">
-              Versión 1.1
+              Versión 1.2
             </div>
           </div>
 
