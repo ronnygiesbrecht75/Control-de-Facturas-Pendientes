@@ -798,7 +798,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* Bottom Panel with Active User Badge + Paraguay currency helper + Cerrar Sesión */}
+        {/* Bottom Panel with Active User Badge + Version + Cerrar Sesión */}
         <div className="p-4 space-y-3 border-t border-amber-600 bg-amber-600/20">
           {currentUser && (
             <div className="bg-[#0f172a] text-white p-2.5 rounded-xl flex items-center gap-2.5 shadow-sm">
@@ -813,10 +813,9 @@ export default function App() {
               </div>
             </div>
           )}
-          <div className="text-[10px] text-slate-900 text-center space-y-1.5 leading-tight font-mono select-none">
-            <span className="text-slate-950 font-black block">MONEDA PARAGUAY: PYG / ₲</span>
-            <p className="text-[9px] text-slate-800 font-medium">Puntos de miles activos en planilla real.</p>
-            <div className="text-[10px] font-black tracking-wider text-amber-950 bg-amber-400/40 py-0.5 px-2.5 rounded-full inline-block mt-1">
+
+          <div className="text-center select-none">
+            <div className="text-[10px] font-black tracking-wider text-amber-950 bg-amber-400/40 py-0.5 px-2.5 rounded-full inline-block">
               Versión 1.1
             </div>
           </div>
