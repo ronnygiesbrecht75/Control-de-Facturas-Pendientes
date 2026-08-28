@@ -213,7 +213,7 @@ export default function AutoUpdaterSection({ onNotify }: AutoUpdaterSectionProps
               title="Simular nueva versión disponible para pruebas"
               className="text-[10px] font-bold text-amber-600 hover:text-amber-700 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 px-2 py-1 rounded-lg transition-colors cursor-pointer"
             >
-              Demo v1.3
+              Demo v1.4
             </button>
           </div>
 

@@ -7,6 +7,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Invoice, PaymentMethod, PaymentDetails } from '../types';
 import { formatPYG, formatInvoiceNumber, formatDateDMY } from '../utils/mockData';
 import { parsePaymentWithAI, ParsedVoicePayment } from '../utils/aiVoicePayment';
+import MicPermissionModal from './MicPermissionModal';
+import {
+  checkMicrophonePermission,
+  requestMicrophoneAccess,
+  isAppInIframe,
+  AudioRecorderSession,
+  MicPermissionStatus
+} from '../utils/microphoneManager';
 import { 
   Smartphone, 
   CreditCard, 
@@ -29,7 +37,9 @@ import {
   RotateCcw,
   ArrowRight,
   HelpCircle,
-  X
+  X,
+  ExternalLink,
+  ShieldAlert
 } from 'lucide-react';
 
 interface CobroMovilRepartidorProps {
@@ -123,128 +133,260 @@ export default function CobroMovilRepartidor({
   const [lastAIResult, setLastAIResult] = useState<ParsedVoicePayment | null>(null);
   const [speechSupported, setSpeechSupported] = useState<boolean>(true);
   const [showVoiceHelp, setShowVoiceHelp] = useState<boolean>(false);
-  const recognitionRef = useRef<any>(null);
+  const [showMicModal, setShowMicModal] = useState<boolean>(false);
+  const [micStatus, setMicStatus] = useState<MicPermissionStatus>('prompt');
+  const [inIframe, setInIframe] = useState<boolean>(false);
+  const [recordingSeconds, setRecordingSeconds] = useState<number>(0);
+  const [audioRecordingActive, setAudioRecordingActive] = useState<boolean>(false);
 
-  // Check speech recognition support on mount
+  const recognitionRef = useRef<any>(null);
+  const audioRecorderRef = useRef<AudioRecorderSession | null>(null);
+  const recordingTimerRef = useRef<any>(null);
+
+  // Check speech recognition support and microphone status on mount
   useEffect(() => {
+    setInIframe(isAppInIframe());
+    checkMicrophonePermission().then((status) => {
+      setMicStatus(status);
+    });
+
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
       setSpeechSupported(false);
     }
+
+    return () => {
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+      if (audioRecorderRef.current) audioRecorderRef.current.abort();
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.abort();
+        } catch (e) {}
+      }
+    };
   }, []);
 
-  // Initialize and handle speech recognition
-  const startVoiceRecording = () => {
+  // Common application of parsed payment to form
+  const applyAIResult = (parsed: ParsedVoicePayment) => {
+    setLastAIResult(parsed);
+
+    // Auto-populate form fields from AI extraction
+    if (parsed.sucursal) setSucursal(parsed.sucursal);
+    if (parsed.caja) setCaja(parsed.caja);
+    if (parsed.numero) setNumero(parsed.numero);
+    if (parsed.clientName) setClientName(parsed.clientName);
+    if (parsed.amount) setAmount(parsed.amount);
+    if (parsed.paymentMethod) setMethod(parsed.paymentMethod);
+    if (parsed.paymentDate) setPaymentDate(parsed.paymentDate);
+    if (parsed.bankName) {
+      if (COMMON_BANKS.includes(parsed.bankName)) {
+        setBankName(parsed.bankName);
+      } else {
+        setBankName('Otro Banco');
+        setCustomBank(parsed.bankName);
+      }
+    }
+    if (parsed.transferReceipt) setTransferReceipt(parsed.transferReceipt);
+    if (parsed.checkNumber) setCheckNumber(parsed.checkNumber);
+    if (parsed.checkIssueDate) setCheckIssueDate(parsed.checkIssueDate);
+    if (parsed.checkDepositDate) setCheckDepositDate(parsed.checkDepositDate);
+
+    // If matched invoice
+    if (parsed.matchedInvoiceId) {
+      const found = invoices.find(i => i.id === parsed.matchedInvoiceId);
+      if (found) {
+        setMatchedInvoice(found);
+      }
+    }
+  };
+
+  // Start voice recording with explicit permission handling & fallback
+  const startVoiceRecording = async () => {
     setErrorNotice(null);
     setVoiceTranscript('');
     setLastAIResult(null);
 
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    
-    if (!SpeechRecognition) {
-      setErrorNotice('El reconocimiento de voz no está disponible en este navegador. Puedes usar Chrome en tu celular.');
+    // 1. Explicitly request microphone stream so browser shows permission prompt if needed
+    const permission = await requestMicrophoneAccess();
+    if (!permission.granted) {
+      setMicStatus('denied');
+      setErrorNotice(
+        permission.errorMessage ||
+        'Permiso de micrófono no otorgado. Puedes desbloquearlo en los ajustes del navegador o en una nueva pestaña.'
+      );
+      setShowMicModal(true);
       return;
     }
 
+    setMicStatus('granted');
+
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    
+    // Try browser SpeechRecognition first if supported
+    if (SpeechRecognition) {
+      try {
+        if (recognitionRef.current) {
+          try { recognitionRef.current.abort(); } catch (e) {}
+        }
+
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'es-PY'; // Spanish (Paraguay) or default Spanish
+        recognition.continuous = false;
+        recognition.interimResults = true;
+        recognition.maxAlternatives = 1;
+
+        recognition.onstart = () => {
+          setIsListening(true);
+          setRecordingSeconds(0);
+          if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+          recordingTimerRef.current = setInterval(() => {
+            setRecordingSeconds((prev) => prev + 1);
+          }, 1000);
+        };
+
+        recognition.onresult = (event: any) => {
+          let currentTranscript = '';
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
+            currentTranscript += event.results[i][0].transcript;
+          }
+          setVoiceTranscript(currentTranscript);
+        };
+
+        recognition.onerror = async (event: any) => {
+          console.warn('Speech recognition error:', event.error);
+          if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+          setIsListening(false);
+
+          if (event.error === 'not-allowed') {
+            setMicStatus('denied');
+            setErrorNotice('Permiso de micrófono denegado en el navegador. Haz clic en "Permisos de Micrófono" para solucionarlo.');
+            setShowMicModal(true);
+          } else if (event.error === 'service-not-allowed' || event.error === 'network') {
+            // If Speech recognition service fails on mobile, fall back to direct audio recording
+            console.log('WebSpeech service failed, attempting direct MediaRecorder audio recording...');
+            startDirectAudioRecording();
+          } else if (event.error !== 'no-speech') {
+            setErrorNotice(`Error en reconocimiento de voz (${event.error}). Puedes reintentar hablar.`);
+          }
+        };
+
+        recognition.onend = () => {
+          if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+          setIsListening(false);
+        };
+
+        recognitionRef.current = recognition;
+        recognition.start();
+        return;
+      } catch (err: any) {
+        console.warn('Error starting WebSpeech, falling back to direct audio recording:', err);
+      }
+    }
+
+    // Direct audio recording fallback if SpeechRecognition is unavailable
+    await startDirectAudioRecording();
+  };
+
+  // Direct Audio Recording via MediaRecorder
+  const startDirectAudioRecording = async () => {
     try {
-      if (recognitionRef.current) {
-        recognitionRef.current.abort();
+      if (audioRecorderRef.current) {
+        audioRecorderRef.current.abort();
       }
 
-      const recognition = new SpeechRecognition();
-      recognition.lang = 'es-PY'; // Spanish (Paraguay) or default Spanish
-      recognition.continuous = false;
-      recognition.interimResults = true;
-      recognition.maxAlternatives = 1;
+      const recorder = new AudioRecorderSession();
+      await recorder.start();
+      audioRecorderRef.current = recorder;
+      setAudioRecordingActive(true);
+      setIsListening(true);
+      setRecordingSeconds(0);
 
-      recognition.onstart = () => {
-        setIsListening(true);
-      };
-
-      recognition.onresult = (event: any) => {
-        let currentTranscript = '';
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          currentTranscript += event.results[i][0].transcript;
-        }
-        setVoiceTranscript(currentTranscript);
-      };
-
-      recognition.onerror = (event: any) => {
-        console.error('Speech recognition error:', event.error);
-        setIsListening(false);
-        if (event.error === 'not-allowed') {
-          setErrorNotice('Permiso de micrófono denegado. Por favor permite el acceso al micrófono en el navegador.');
-        } else if (event.error !== 'no-speech') {
-          setErrorNotice(`Error en reconocimiento de voz: ${event.error}`);
-        }
-      };
-
-      recognition.onend = () => {
-        setIsListening(false);
-      };
-
-      recognitionRef.current = recognition;
-      recognition.start();
+      if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingSeconds((prev) => prev + 1);
+      }, 1000);
     } catch (err: any) {
-      console.error('Failed to start speech recognition:', err);
+      console.error('Failed to start audio recording:', err);
       setIsListening(false);
-      setErrorNotice('No se pudo activar el micrófono.');
+      setAudioRecordingActive(false);
+      setErrorNotice('No se pudo acceder al micrófono para grabar audio. Verifica los permisos.');
+      setShowMicModal(true);
     }
   };
 
-  const stopVoiceRecording = () => {
-    if (recognitionRef.current) {
-      recognitionRef.current.stop();
+  // Stop recording (works for both WebSpeech and MediaRecorder)
+  const stopVoiceRecording = async () => {
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
     }
+
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch (e) {}
+    }
+
+    if (audioRecorderRef.current && audioRecordingActive) {
+      setIsListening(false);
+      setAudioRecordingActive(false);
+      setIsProcessingAI(true);
+      try {
+        const audioData = await audioRecorderRef.current.stop();
+        audioRecorderRef.current = null;
+
+        if (audioData.base64 && audioData.durationMs > 400) {
+          await handleProcessAudioWithAI(audioData.base64, audioData.mimeType);
+        } else {
+          setErrorNotice('El audio fue demasiado breve. Habla claro indicando cliente, monto y factura.');
+        }
+      } catch (err: any) {
+        console.error('Error stopping audio recorder:', err);
+        setErrorNotice('Ocurrió un error al procesar el audio grabado.');
+      } finally {
+        setIsProcessingAI(false);
+      }
+      return;
+    }
+
     setIsListening(false);
   };
 
   // When speech ends and we have a transcript, process with Gemini AI
   useEffect(() => {
-    if (!isListening && voiceTranscript.trim().length > 3) {
+    if (!isListening && voiceTranscript.trim().length > 3 && !audioRecordingActive) {
       handleProcessVoiceWithAI(voiceTranscript);
     }
   }, [isListening]);
 
+  // Process live text transcript with Gemini AI
   const handleProcessVoiceWithAI = async (transcriptToProcess: string) => {
     setIsProcessingAI(true);
     setErrorNotice(null);
 
     try {
       const parsed = await parsePaymentWithAI(transcriptToProcess, invoices, systemDate);
-      setLastAIResult(parsed);
-
-      // Auto-populate form fields from AI extraction
-      if (parsed.sucursal) setSucursal(parsed.sucursal);
-      if (parsed.caja) setCaja(parsed.caja);
-      if (parsed.numero) setNumero(parsed.numero);
-      if (parsed.clientName) setClientName(parsed.clientName);
-      if (parsed.amount) setAmount(parsed.amount);
-      if (parsed.paymentMethod) setMethod(parsed.paymentMethod);
-      if (parsed.paymentDate) setPaymentDate(parsed.paymentDate);
-      if (parsed.bankName) {
-        if (COMMON_BANKS.includes(parsed.bankName)) {
-          setBankName(parsed.bankName);
-        } else {
-          setBankName('Otro Banco');
-          setCustomBank(parsed.bankName);
-        }
-      }
-      if (parsed.transferReceipt) setTransferReceipt(parsed.transferReceipt);
-      if (parsed.checkNumber) setCheckNumber(parsed.checkNumber);
-      if (parsed.checkIssueDate) setCheckIssueDate(parsed.checkIssueDate);
-      if (parsed.checkDepositDate) setCheckDepositDate(parsed.checkDepositDate);
-
-      // If matched invoice
-      if (parsed.matchedInvoiceId) {
-        const found = invoices.find(i => i.id === parsed.matchedInvoiceId);
-        if (found) {
-          setMatchedInvoice(found);
-        }
-      }
+      applyAIResult(parsed);
     } catch (err: any) {
       console.error('AI voice processing error:', err);
-      setErrorNotice('No se pudo interpretar el dictado con IA. Puedes completar los campos manualmente.');
+      setErrorNotice('No se pudo interpretar el dictado con IA. Puedes reintentar o completar los campos manualmente.');
+    } finally {
+      setIsProcessingAI(false);
+    }
+  };
+
+  // Process raw audio with Gemini AI
+  const handleProcessAudioWithAI = async (audioBase64: string, audioMimeType: string) => {
+    setIsProcessingAI(true);
+    setErrorNotice(null);
+    setVoiceTranscript('(Audio procesado por Gemini)');
+
+    try {
+      const parsed = await parsePaymentWithAI('', invoices, systemDate, audioBase64, audioMimeType);
+      applyAIResult(parsed);
+    } catch (err: any) {
+      console.error('AI voice audio processing error:', err);
+      setErrorNotice('No se pudo interpretar el audio con IA. Intenta hablar nuevamente más cerca del micrófono.');
     } finally {
       setIsProcessingAI(false);
     }
@@ -473,6 +615,20 @@ export default function CobroMovilRepartidor({
     }, 50);
   };
 
+  const handleResetForm = () => {
+    setNumero('');
+    setClientName('');
+    setAmount('');
+    setTransferReceipt('');
+    setCheckNumber('');
+    setBankName('');
+    setCustomBank('');
+    setMatchedInvoice(null);
+    setLastAIResult(null);
+    setVoiceTranscript('');
+    setErrorNotice(null);
+  };
+
   const handleKeyDownNext = (
     e: React.KeyboardEvent<HTMLInputElement>,
     nextRef: React.RefObject<HTMLInputElement | HTMLButtonElement | null>,
@@ -546,97 +702,147 @@ export default function CobroMovilRepartidor({
       {/* Main Registration Form Card */}
       <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-md border border-slate-200 dark:border-slate-700 overflow-hidden">
         
-        {/* --- HEADER WITH CENTERED MICROPHONE BUTTON --- */}
-        <div className="p-3 sm:p-4 bg-slate-50 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between gap-2 relative">
-          
-          {/* Left Title */}
-          <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
-            <CreditCard className="w-4 h-4 text-amber-500 flex-shrink-0" />
-            <span className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-200 leading-tight">
+        {/* Form Card Header - Matches user's screenshot: [💳 Formulario de Pago] [🎙️ Dictar por Voz (IA) ✨] [❓ Ejemplos] [PYG] */}
+        <div className="p-3 sm:p-4 bg-slate-50/80 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-2.5">
+          <div className="flex items-center gap-2">
+            <CreditCard className="w-5 h-5 text-amber-500 flex-shrink-0" />
+            <h3 className="text-sm sm:text-base font-bold text-slate-800 dark:text-slate-100 leading-tight">
               Formulario de Pago
-            </span>
+            </h3>
           </div>
 
-          {/* --- CENTER: PROMINENT MICROPHONE BUTTON --- */}
-          <div className="flex items-center justify-center flex-1 mx-1">
-            <div className="relative">
-              {/* Pulsing ring when recording */}
-              {isListening && (
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Button: Dictar por Voz (IA) */}
+            <button
+              type="button"
+              onClick={isListening ? stopVoiceRecording : startVoiceRecording}
+              disabled={isProcessingAI}
+              className={`px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-full font-bold text-xs sm:text-sm flex items-center gap-2 shadow-sm transition-all cursor-pointer ${
+                isListening
+                  ? 'bg-rose-500 hover:bg-rose-600 text-white animate-pulse shadow-md'
+                  : isProcessingAI
+                  ? 'bg-amber-400 text-slate-950 opacity-90 cursor-wait'
+                  : 'bg-amber-500 hover:bg-amber-400 text-slate-950 hover:shadow-md active:scale-95'
+              }`}
+            >
+              {isListening ? (
                 <>
-                  <span className="animate-ping absolute -inset-1 rounded-full bg-rose-500 opacity-75"></span>
-                  <span className="animate-pulse absolute -inset-2.5 rounded-full bg-amber-400 opacity-40"></span>
+                  <MicOff className="w-4 h-4 animate-bounce text-white" />
+                  <span>Detener ({recordingSeconds < 10 ? `0${recordingSeconds}` : recordingSeconds}s)</span>
+                </>
+              ) : isProcessingAI ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin text-slate-950" />
+                  <span>Interpretando con IA...</span>
+                </>
+              ) : (
+                <>
+                  <Mic className="w-4 h-4 text-slate-950" />
+                  <span>Dictar por Voz (IA)</span>
+                  <Sparkles className="w-4 h-4 text-slate-950" />
                 </>
               )}
+            </button>
 
-              <button
-                type="button"
-                onClick={isListening ? stopVoiceRecording : startVoiceRecording}
-                disabled={isProcessingAI}
-                title={isListening ? 'Detener dictado' : 'Dictar cobro con el micrófono (IA)'}
-                className={`relative z-10 flex items-center gap-2 px-3.5 py-1.5 rounded-full font-bold text-xs shadow-md transition-all transform active:scale-95 cursor-pointer select-none ${
-                  isListening
-                    ? 'bg-rose-600 hover:bg-rose-700 text-white ring-2 ring-rose-400'
-                    : isProcessingAI
-                    ? 'bg-amber-600 text-white cursor-wait animate-pulse'
-                    : 'bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 ring-2 ring-amber-400/50 hover:shadow-lg'
-                }`}
-              >
-                {isListening ? (
-                  <>
-                    <MicOff className="w-4 h-4 animate-bounce" />
-                    <span className="hidden xs:inline sm:inline">Escuchando...</span>
-                  </>
-                ) : isProcessingAI ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span className="hidden xs:inline sm:inline">IA interpretando...</span>
-                  </>
-                ) : (
-                  <>
-                    <Mic className="w-4 h-4 text-slate-950" />
-                    <span className="hidden xs:inline sm:inline font-black">Dictar por Voz (IA)</span>
-                    <Sparkles className="w-3.5 h-3.5 text-amber-900 hidden sm:inline" />
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-
-          {/* Right: Help trigger and PYG badge */}
-          <div className="flex items-center gap-1.5 flex-shrink-0">
+            {/* Button: Ejemplos */}
             <button
               type="button"
               onClick={() => setShowVoiceHelp(!showVoiceHelp)}
-              title="Ver ejemplos de frases para dictar"
-              className="text-[11px] text-amber-600 dark:text-amber-400 font-bold hover:underline flex items-center gap-1 cursor-pointer py-1 px-2 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 transition-colors"
+              className="px-3 py-1.5 rounded-full font-bold text-xs flex items-center gap-1.5 bg-[#FFF4E5] dark:bg-amber-950/40 text-[#D97706] dark:text-amber-300 border border-amber-200/80 dark:border-amber-800/60 hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors cursor-pointer"
             >
-              <HelpCircle className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Ejemplos</span>
+              <HelpCircle className="w-4 h-4 text-[#D97706] dark:text-amber-400" />
+              <span>Ejemplos</span>
             </button>
-            <span className="text-[10px] text-slate-500 font-mono bg-slate-200 dark:bg-slate-800 px-2 py-0.5 rounded-full font-bold">
+
+            {/* Badge: PYG */}
+            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-full font-bold uppercase tracking-wider">
               PYG
             </span>
           </div>
-
         </div>
 
-        {/* Voice Help Examples Drawer */}
+        {/* Active Voice Recording Bar (shown when listening or processing) */}
+        {(isListening || isProcessingAI) && (
+          <div className="p-3.5 bg-gradient-to-r from-amber-500/10 via-rose-500/10 to-amber-500/10 border-b border-amber-300/40 dark:border-amber-500/30 flex flex-wrap items-center justify-between gap-2.5 animate-fade-in">
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              {isListening ? (
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping"></span>
+                  <span className="text-xs font-bold text-rose-600 dark:text-rose-400">
+                    Escuchando voz... (00:{recordingSeconds < 10 ? `0${recordingSeconds}` : recordingSeconds})
+                  </span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 text-xs font-bold">
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  <span>Gemini 3.7 completando los campos del cobro...</span>
+                </div>
+              )}
+
+              {voiceTranscript && (
+                <span className="text-xs font-mono text-slate-700 dark:text-slate-300 italic truncate hidden sm:inline">
+                  "{voiceTranscript}"
+                </span>
+              )}
+            </div>
+
+            {isListening && (
+              <button
+                type="button"
+                onClick={stopVoiceRecording}
+                className="px-3.5 py-1 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-full shadow transition-colors cursor-pointer"
+              >
+                Terminar y Procesar
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Permission Denied Alert Bar */}
+        {micStatus === 'denied' && (
+          <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border-b border-rose-200 dark:border-rose-800 text-xs text-rose-700 dark:text-rose-300 flex flex-wrap items-center justify-between gap-2 animate-fade-in">
+            <div className="flex items-center gap-2">
+              <ShieldAlert className="w-4 h-4 text-rose-500 flex-shrink-0" />
+              <span>El navegador no tiene permiso para usar el micrófono.</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowMicModal(true)}
+                className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-lg text-[11px] cursor-pointer"
+              >
+                Ver Cómo Desbloquearlo
+              </button>
+              <button
+                type="button"
+                onClick={() => window.open(window.location.href, '_blank', 'noopener,noreferrer')}
+                className="px-2.5 py-1 bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold rounded-lg text-[11px] cursor-pointer flex items-center gap-1"
+              >
+                <ExternalLink className="w-3 h-3 text-amber-500" />
+                Pestaña Completa
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Examples Drawer */}
         {showVoiceHelp && (
-          <div className="p-3.5 bg-slate-900 text-white border-b border-slate-700 text-xs space-y-2 animate-fade-in">
+          <div className="p-3.5 bg-amber-50/80 dark:bg-slate-900 border-b border-amber-200 dark:border-slate-700 text-xs space-y-2 animate-fade-in">
             <div className="flex items-center justify-between">
-              <p className="font-bold text-amber-400 flex items-center gap-1.5">
-                <Volume2 className="w-4 h-4" />
-                Ejemplos de frases que puedes dictar:
+              <p className="font-bold text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+                <Volume2 className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                Ejemplos de frases que puedes dictar por voz:
               </p>
               <button
                 type="button"
                 onClick={() => setShowVoiceHelp(false)}
-                className="text-slate-400 hover:text-white p-1"
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1 cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+
+            <div className="space-y-1.5">
               {VOICE_EXAMPLES.map((ex, idx) => (
                 <button
                   key={idx}
@@ -646,115 +852,75 @@ export default function CobroMovilRepartidor({
                     handleProcessVoiceWithAI(ex);
                     setShowVoiceHelp(false);
                   }}
-                  className="w-full text-left p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-[11px] font-mono text-slate-200 border border-slate-700 transition-colors cursor-pointer flex items-center justify-between"
+                  className="w-full text-left p-2 rounded-lg bg-white dark:bg-slate-800 hover:bg-amber-100/60 dark:hover:bg-slate-700 text-[11px] font-mono text-slate-800 dark:text-slate-200 border border-amber-200/60 dark:border-slate-700 transition-colors cursor-pointer flex items-center justify-between"
                 >
-                  <span className="truncate pr-1">"{ex}"</span>
-                  <span className="text-amber-400 text-[10px] font-bold flex-shrink-0">Probar &rarr;</span>
+                  <span className="truncate mr-2">"{ex}"</span>
+                  <span className="text-[10px] text-amber-600 dark:text-amber-400 font-sans font-bold flex-shrink-0">
+                    Probar con IA →
+                  </span>
                 </button>
               ))}
             </div>
           </div>
         )}
 
-        {/* Live Spoken Transcript Banner */}
-        {isListening && (
-          <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-800/60 flex items-center justify-between gap-2 text-xs text-amber-900 dark:text-amber-200 animate-fade-in">
-            <div className="flex items-center gap-2 overflow-hidden">
-              <span className="flex h-2 w-2 relative flex-shrink-0">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
-              </span>
-              <p className="font-mono italic truncate">
-                {voiceTranscript ? `"${voiceTranscript}"` : 'Habla ahora... Di el cliente, monto, número de factura o banco.'}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={stopVoiceRecording}
-              className="text-[11px] font-bold bg-rose-600 text-white px-2.5 py-1 rounded-lg hover:bg-rose-700 transition-colors cursor-pointer flex-shrink-0"
-            >
-              Listo
-            </button>
-          </div>
-        )}
-
-        {/* --- AI INTERPRETATION SUCCESS CARD (1-CLICK CONFIRMATION) --- */}
+        {/* AI Interpretation Card (1-Click Fast Register) */}
         {lastAIResult && (
-          <div className="m-3 sm:m-4 p-4 bg-gradient-to-br from-emerald-950/90 to-slate-900 text-white rounded-xl border-2 border-emerald-500/80 space-y-3 animate-fade-in shadow-xl">
+          <div className="m-3.5 sm:m-4 p-4 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-950 dark:text-emerald-100 rounded-xl border border-emerald-300 dark:border-emerald-700/60 space-y-2.5 animate-fade-in shadow-xs">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-emerald-400 flex-shrink-0" />
-                <span className="text-xs font-bold text-emerald-300">
-                  Datos Extraídos por IA con Éxito
-                </span>
+              <div className="flex items-center gap-1.5 font-bold text-xs text-emerald-800 dark:text-emerald-300">
+                <Sparkles className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <span>Datos extraídos por IA y cargados en el formulario</span>
               </div>
               {lastAIResult.confidence && (
-                <span className="text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                <span className="text-[10px] font-mono font-bold bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-700">
                   {Math.round(lastAIResult.confidence * 100)}% Coincidencia
                 </span>
               )}
             </div>
 
-            {/* Parsed Highlights Grid */}
-            <div className="grid grid-cols-2 gap-2 text-xs bg-slate-950/70 p-3 rounded-lg border border-emerald-900/60 font-mono">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs bg-white/80 dark:bg-slate-900/80 p-2.5 rounded-lg border border-emerald-200 dark:border-slate-700 font-mono">
               <div>
-                <span className="text-[10px] text-slate-400 block">Factura:</span>
-                <span className="font-bold text-amber-400">
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-sans">Factura:</span>
+                <span className="font-bold text-amber-600 dark:text-amber-400">
                   {formatInvoiceNumber(lastAIResult.sucursal || sucursal || '001', lastAIResult.caja || caja || '009', lastAIResult.numero || numero || '0000000')}
                 </span>
               </div>
               <div>
-                <span className="text-[10px] text-slate-400 block">Monto:</span>
-                <span className="font-bold text-emerald-400 text-sm">
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-sans">Monto:</span>
+                <span className="font-bold text-emerald-700 dark:text-emerald-400 text-sm">
                   {formatPYG(Number(lastAIResult.amount || amount || 0))}
                 </span>
               </div>
               <div>
-                <span className="text-[10px] text-slate-400 block">Método:</span>
-                <span className="font-bold text-slate-200">{lastAIResult.paymentMethod || method}</span>
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-sans">Método:</span>
+                <span className="font-bold text-slate-700 dark:text-slate-300">{lastAIResult.paymentMethod || method}</span>
               </div>
               <div>
-                <span className="text-[10px] text-slate-400 block">Cliente:</span>
-                <span className="font-bold text-slate-200 truncate block">
+                <span className="text-[10px] text-slate-500 dark:text-slate-400 block font-sans">Cliente:</span>
+                <span className="font-bold text-slate-700 dark:text-slate-300 truncate block">
                   {lastAIResult.clientName || clientName || 'Por definir'}
                 </span>
               </div>
-              {lastAIResult.bankName && (
-                <div className="col-span-2">
-                  <span className="text-[10px] text-slate-400 block">Banco:</span>
-                  <span className="font-bold text-slate-200">{lastAIResult.bankName}</span>
-                </div>
-              )}
             </div>
 
-            {lastAIResult.explanation && (
-              <p className="text-[11px] text-slate-300">
-                {lastAIResult.explanation}
-              </p>
-            )}
-
-            {/* 1-Tap Action Button */}
-            <div className="grid grid-cols-2 gap-2 pt-1">
+            <div className="flex gap-2 pt-1">
               <button
                 type="button"
                 onClick={handleConfirmDirectAI}
-                className="col-span-2 sm:col-span-1 py-2.5 px-4 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black rounded-xl shadow-lg transition-all text-xs flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+                className="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-xs transition-colors"
               >
-                <Zap className="w-4 h-4 fill-current" />
+                <Zap className="w-3.5 h-3.5 fill-current" />
                 <span>⚡ Registrar Pago de Inmediato</span>
               </button>
-
               <button
                 type="button"
-                onClick={() => {
-                  setLastAIResult(null);
-                }}
-                className="col-span-2 sm:col-span-1 py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-xl border border-slate-600 transition-all text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                onClick={() => setLastAIResult(null)}
+                className="py-2 px-3 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-medium rounded-lg text-xs border border-slate-200 dark:border-slate-700 cursor-pointer transition-colors"
               >
-                <span>✏️ Ajustar en Formulario</span>
+                Modificar en Campos
               </button>
             </div>
-
           </div>
         )}
 
@@ -1146,22 +1312,39 @@ export default function CobroMovilRepartidor({
             </div>
           )}
 
-          {/* Submit Button */}
-          <div className="pt-2">
+          {/* Submit Button & Reset */}
+          <div className="pt-2 flex flex-col sm:flex-row gap-2">
             <button
               id="btn-submit-mobile-payment"
               ref={submitBtnRef}
               type="submit"
-              className="w-full py-3.5 px-4 bg-slate-900 hover:bg-slate-800 dark:bg-amber-500 dark:hover:bg-amber-400 text-white dark:text-slate-950 font-black rounded-xl shadow-lg transition-all text-sm flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+              className="flex-1 py-3.5 px-4 bg-slate-900 hover:bg-slate-800 dark:bg-amber-500 dark:hover:bg-amber-400 text-white dark:text-slate-950 font-black rounded-xl shadow-lg transition-all text-sm flex items-center justify-center gap-2 cursor-pointer active:scale-95"
             >
               <Check className="w-5 h-5" />
               <span>Registrar Pago en el Sistema</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleResetForm}
+              className="py-3.5 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer transition-colors border border-slate-200 dark:border-slate-700"
+              title="Limpiar todos los campos del formulario"
+            >
+              <RotateCcw className="w-4 h-4" />
+              <span>Limpiar</span>
             </button>
           </div>
 
         </form>
 
       </div>
+
+      {/* Microphone Permission and Diagnosis Modal */}
+      <MicPermissionModal
+        isOpen={showMicModal}
+        onClose={() => setShowMicModal(false)}
+        onPermissionGranted={() => setMicStatus('granted')}
+      />
 
     </div>
   );

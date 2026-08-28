@@ -1,4 +1,4 @@
-const CACHE_NAME = 'walter-pagos-cache-v2';
+const CACHE_NAME = 'walter-pagos-cache-v3';
 const ASSETS = [
   './',
   './index.html',

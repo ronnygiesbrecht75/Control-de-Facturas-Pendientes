@@ -59,7 +59,7 @@ import Clientes from './components/Clientes';
 import Ajustes from './components/Ajustes';
 import CobroMovilRepartidor from './components/CobroMovilRepartidor';
 import UpdateNotificationToast from './components/UpdateNotificationToast';
-import { getUpdateConfig, checkForAppUpdates, UpdateInfo } from './utils/autoUpdater';
+import { getUpdateConfig, checkForAppUpdates, UpdateInfo, CURRENT_APP_VERSION } from './utils/autoUpdater';
 
 // Icons for navigation sidebar - all from lucide-react as required
 import { 
@@ -849,7 +849,7 @@ export default function App() {
 
           <div className="text-center select-none">
             <div className="text-[10px] font-black tracking-wider text-amber-950 bg-amber-400/40 py-0.5 px-2.5 rounded-full inline-block">
-              Versión 1.2
+              Versión {CURRENT_APP_VERSION}
             </div>
           </div>
 
