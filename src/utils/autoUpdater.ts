@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export const CURRENT_APP_VERSION = '1.3.0';
+export const CURRENT_APP_VERSION = '1.4.0';
 
 export interface ReleaseAsset {
   name: string;
@@ -35,7 +35,7 @@ export interface UpdateConfig {
 const DEFAULT_CONFIG: UpdateConfig = {
   autoCheckOnStartup: true,
   channel: 'stable',
-  githubRepo: 'ronnygiesbrecht75/control-de-pagos',
+  githubRepo: 'ronnygiesbrecht75/Control-de-Facturas-Pendientes',
   lastChecked: null,
   ignoredVersion: null,
 };
@@ -46,12 +46,57 @@ export function getUpdateConfig(): UpdateConfig {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
-      return { ...DEFAULT_CONFIG, ...JSON.parse(saved) };
+      const parsed = JSON.parse(saved);
+      // Auto-migrate if it still pointed to the old repo name
+      if (!parsed.githubRepo || parsed.githubRepo.toLowerCase() === 'ronnygiesbrecht75/control-de-pagos') {
+        parsed.githubRepo = 'ronnygiesbrecht75/Control-de-Facturas-Pendientes';
+      }
+      return { ...DEFAULT_CONFIG, ...parsed };
     }
   } catch (e) {
     console.error('Error loading update configuration:', e);
   }
   return DEFAULT_CONFIG;
+}
+
+export type PlatformType = 'windows' | 'android' | 'other';
+
+export function detectCurrentPlatform(): PlatformType {
+  if (typeof navigator === 'undefined') return 'windows';
+  const ua = (navigator.userAgent || '').toLowerCase();
+  if (/android/i.test(ua)) return 'android';
+  if (/iphone|ipad|ipod/i.test(ua)) return 'other';
+  // Default to Windows / PC desktop
+  return 'windows';
+}
+
+export function getRecommendedAsset(assets: ReleaseAsset[]): ReleaseAsset | undefined {
+  if (!assets || assets.length === 0) return undefined;
+  const platform = detectCurrentPlatform();
+
+  if (platform === 'windows') {
+    // Look specifically for Windows executable (.exe or .msi)
+    const exe = assets.find(a => a.type === 'windows' || a.name.toLowerCase().endsWith('.exe') || a.name.toLowerCase().endsWith('.msi'));
+    if (exe) return exe;
+  } else if (platform === 'android') {
+    // Look specifically for Android APK
+    const apk = assets.find(a => a.type === 'android' || a.name.toLowerCase().endsWith('.apk'));
+    if (apk) return apk;
+  }
+
+  // Fallback: If on PC / unknown desktop, prefer .exe if available
+  const winAsset = assets.find(a => a.type === 'windows' || a.name.toLowerCase().endsWith('.exe'));
+  if (winAsset) return winAsset;
+
+  return assets[0];
+}
+
+export function formatFileSize(bytes?: number): string {
+  if (!bytes || bytes <= 0) return '';
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(1)} KB`;
+  }
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 export function saveUpdateConfig(config: Partial<UpdateConfig>): UpdateConfig {
@@ -88,7 +133,7 @@ export function isNewerVersion(remote: string, current: string): boolean {
 // Check for updates against GitHub Releases API or fallback server
 export async function checkForAppUpdates(customRepo?: string): Promise<UpdateInfo> {
   const config = getUpdateConfig();
-  const repo = customRepo || config.githubRepo || 'ronnygiesbrecht75/control-de-pagos';
+  const repo = customRepo || config.githubRepo || 'ronnygiesbrecht75/Control-de-Facturas-Pendientes';
   const nowStr = new Date().toISOString();
 
   // Save last checked timestamp
@@ -157,19 +202,33 @@ export async function checkForAppUpdates(customRepo?: string): Promise<UpdateInf
     releaseName: `Control de Pagos v${CURRENT_APP_VERSION} (Al Día)`,
     releaseDate: nowStr,
     releaseNotes: [
-      'Versión v1.3.0 instalada y operativa.',
-      'Carga inteligente de cobros con IA (Gemini 3.7): dictado por voz y asistente por teclado.',
+      'Versión v1.4.0 instalada y operativa.',
+      'Soporte completo y descarga diferenciada automática de instaladores (.exe para PC y .apk para móviles).',
+      'Carga inteligente de cobros con IA (Gemini): dictado por voz y asistente por teclado.',
       'Diagnóstico interactivo y guía paso a paso para permisos de micrófono.',
       'Soporte completo para facturas y montos en Guaraníes (PYG).',
       'Módulo de Cobro Repartidor Móvil con registro directo.'
     ],
     htmlUrl: `https://github.com/${repo}/releases`,
-    assets: []
+    assets: [
+      {
+        name: `Control.de.Pagos.Setup.${CURRENT_APP_VERSION}.exe`,
+        downloadUrl: `https://github.com/${repo}/releases/download/v${CURRENT_APP_VERSION}/Control.de.Pagos.Setup.${CURRENT_APP_VERSION}.exe`,
+        size: 136360498,
+        type: 'windows'
+      },
+      {
+        name: `Control-de-Pagos-v${CURRENT_APP_VERSION}.apk`,
+        downloadUrl: `https://github.com/${repo}/releases/download/v${CURRENT_APP_VERSION}/Control-de-Pagos-v${CURRENT_APP_VERSION}.apk`,
+        size: 9732214,
+        type: 'android'
+      }
+    ]
   };
 }
 
 // Simulates an update check for testing / demo purposes
-export function simulateNewVersionCheck(simulatedVersion: string = '1.4.0'): UpdateInfo {
+export function simulateNewVersionCheck(simulatedVersion: string = '1.5.0'): UpdateInfo {
   return {
     hasUpdate: isNewerVersion(simulatedVersion, CURRENT_APP_VERSION),
     currentVersion: CURRENT_APP_VERSION,
@@ -177,23 +236,23 @@ export function simulateNewVersionCheck(simulatedVersion: string = '1.4.0'): Upd
     releaseName: `Control de Pagos v${simulatedVersion} - Actualización Disponible`,
     releaseDate: new Date().toISOString(),
     releaseNotes: [
-      '🚀 Próxima versión v1.4.0 en preparación.',
+      '🚀 Próxima versión v1.5.0 en preparación.',
       '📊 Nuevos filtros avanzados de auditoría y estadísticas.',
       '🔄 Sincronización multi-dispositivo en tiempo real mejorada.',
       '🛠️ Optimización general de rendimiento y menor consumo de memoria.'
     ],
-    htmlUrl: 'https://github.com/ronnygiesbrecht75/control-de-pagos/releases',
+    htmlUrl: 'https://github.com/ronnygiesbrecht75/Control-de-Facturas-Pendientes/releases',
     assets: [
       {
-        name: `ControlDePagos-Setup-${simulatedVersion}.exe`,
-        downloadUrl: '#',
-        size: 78500000,
+        name: `Control.de.Pagos.Setup.${simulatedVersion}.exe`,
+        downloadUrl: 'https://github.com/ronnygiesbrecht75/Control-de-Facturas-Pendientes/releases',
+        size: 136360000,
         type: 'windows'
       },
       {
-        name: `ControlDePagos-v${simulatedVersion}.apk`,
-        downloadUrl: '#',
-        size: 34200000,
+        name: `Control-de-Pagos-v${simulatedVersion}.apk`,
+        downloadUrl: 'https://github.com/ronnygiesbrecht75/Control-de-Facturas-Pendientes/releases',
+        size: 9730000,
         type: 'android'
       }
     ]

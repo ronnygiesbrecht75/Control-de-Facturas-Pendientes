@@ -10,8 +10,12 @@ import {
   saveUpdateConfig, 
   checkForAppUpdates, 
   simulateNewVersionCheck,
+  getRecommendedAsset,
+  detectCurrentPlatform,
+  formatFileSize,
   UpdateInfo, 
-  UpdateConfig 
+  UpdateConfig,
+  ReleaseAsset 
 } from '../utils/autoUpdater';
 import { 
   RefreshCw, 
@@ -49,7 +53,7 @@ export default function AutoUpdaterSection({ onNotify }: AutoUpdaterSectionProps
     try {
       let info: UpdateInfo;
       if (forceSimulate) {
-        info = simulateNewVersionCheck('1.3.0');
+        info = simulateNewVersionCheck('1.5.0');
       } else {
         info = await checkForAppUpdates(customRepo);
       }
@@ -98,29 +102,52 @@ export default function AutoUpdaterSection({ onNotify }: AutoUpdaterSectionProps
     });
   };
 
-  const handleStartDownload = (assetUrl?: string) => {
+  const handleStartDownload = (assetUrl?: string, assetName?: string) => {
+    if (!assetUrl || assetUrl === '#') {
+      onNotify?.({
+        type: 'info',
+        message: 'Enlace no disponible en esta prueba simulada. En una actualización real iniciará la descarga directa.'
+      });
+      return;
+    }
+
     setIsDownloading(true);
     setDownloadProgress(0);
 
-    // Simulate smooth download progress
+    // Trigger direct download immediately in the browser / Electron environment
+    try {
+      const link = document.createElement('a');
+      link.href = assetUrl;
+      if (assetName) link.download = assetName;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        if (document.body.contains(link)) {
+          document.body.removeChild(link);
+        }
+      }, 200);
+    } catch (e) {
+      window.open(assetUrl, '_blank');
+    }
+
+    // Simulate visual download progress indicator
     const interval = setInterval(() => {
       setDownloadProgress((prev) => {
-        if (prev === null) return 10;
+        if (prev === null) return 15;
         if (prev >= 100) {
           clearInterval(interval);
           setIsDownloading(false);
           onNotify?.({
             type: 'success',
-            message: 'Descarga completada. El instalador se ejecutará automáticamente.'
+            message: `Descarga iniciada: ${assetName || 'Instalador'}. Revisa la carpeta de descargas de tu equipo.`
           });
-          if (assetUrl && assetUrl !== '#') {
-            window.open(assetUrl, '_blank');
-          }
           return 100;
         }
-        return prev + 15;
+        return prev + 25;
       });
-    }, 300);
+    }, 250);
   };
 
   const formatDate = (isoStr: string | null) => {
@@ -275,49 +302,242 @@ export default function AutoUpdaterSection({ onNotify }: AutoUpdaterSectionProps
                   </div>
                 )}
 
-                {/* Action Buttons */}
-                <div className="flex flex-wrap items-center gap-2.5 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => handleStartDownload(updateResult.assets[0]?.downloadUrl)}
-                    disabled={isDownloading}
-                    className="py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-md transition-all flex items-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50"
-                  >
-                    <Download className="w-4 h-4" />
-                    <span>{isDownloading ? 'Descargando...' : `Descargar e Instalar v${updateResult.latestVersion}`}</span>
-                  </button>
+                {/* Detected Platform & Packages Selection */}
+                {(() => {
+                  const currentPlatform = detectCurrentPlatform();
+                  const windowsAsset = updateResult.assets.find(
+                    (a) => a.type === 'windows' || a.name.toLowerCase().endsWith('.exe') || a.name.toLowerCase().endsWith('.msi')
+                  );
+                  const androidAsset = updateResult.assets.find(
+                    (a) => a.type === 'android' || a.name.toLowerCase().endsWith('.apk')
+                  );
 
-                  <a
-                    href={updateResult.htmlUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="py-2.5 px-3 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-bold rounded-xl text-xs transition-colors flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <span>Ver en GitHub</span>
-                    <ExternalLink className="w-3.5 h-3.5" />
-                  </a>
+                  return (
+                    <div className="space-y-3 pt-1">
+                      {/* Detection badge */}
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
+                          <Download className="w-3.5 h-3.5 text-amber-500" />
+                          Selecciona el archivo para tu dispositivo:
+                        </span>
+                        <span className="text-[11px] px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-medium">
+                          Detectado: <strong className="text-amber-600 dark:text-amber-400">{currentPlatform === 'windows' ? '💻 Computadora (Windows)' : currentPlatform === 'android' ? '📱 Teléfono (Android)' : 'Navegador Web'}</strong>
+                        </span>
+                      </div>
 
-                  <button
-                    type="button"
-                    onClick={() => setUpdateResult(null)}
-                    className="py-2.5 px-3 text-slate-500 hover:text-slate-700 dark:text-slate-400 text-xs font-semibold cursor-pointer"
-                  >
-                    Recordar más tarde
-                  </button>
-                </div>
+                      {/* Packages Grid */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {/* Windows Installer Card */}
+                        <div className={`p-4 rounded-xl border transition-all flex flex-col justify-between ${
+                          currentPlatform === 'windows'
+                            ? 'border-blue-500/60 bg-blue-50/70 dark:bg-blue-950/30 ring-2 ring-blue-500/20 shadow-sm'
+                            : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/90'
+                        }`}>
+                          <div className="space-y-2">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex items-center gap-2.5">
+                                <div className={`p-2.5 rounded-xl ${
+                                  currentPlatform === 'windows'
+                                    ? 'bg-blue-600 text-white shadow-xs'
+                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                                }`}>
+                                  <Laptop className="w-5 h-5" />
+                                </div>
+                                <div>
+                                  <div className="flex items-center gap-1.5">
+                                    <h5 className="text-xs font-black text-slate-900 dark:text-slate-100">
+                                      Instalador para PC (Windows)
+                                    </h5>
+                                    {currentPlatform === 'windows' && (
+                                      <span className="text-[9px] font-bold bg-blue-500 text-white px-1.5 py-0.2 rounded-full uppercase tracking-wider">
+                                        Tu Equipo
+                                      </span>
+                                    )}
+                                  </div>
+                                  <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                                    Archivo ejecutable para escritorio
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="p-2 rounded-lg bg-slate-100/70 dark:bg-slate-800/70 font-mono text-[10px] text-slate-600 dark:text-slate-300 flex items-center justify-between">
+                              <span className="truncate max-w-[170px]" title={windowsAsset?.name || 'Control.de.Pagos.Setup.exe'}>
+                                {windowsAsset?.name || `Control.de.Pagos.Setup.${updateResult.latestVersion}.exe`}
+                              </span>
+                              <span className="font-bold text-slate-500 ml-1">
+                                {windowsAsset?.size ? formatFileSize(windowsAsset.size) : '~130 MB'}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="pt-3">
+                            <button
+                              type="button"
+                              onClick={() => handleStartDownload(
+                                windowsAsset?.downloadUrl || `https://github.com/${config.githubRepo}/releases/download/v${updateResult.latestVersion}/Control.de.Pagos.Setup.${updateResult.latestVersion}.exe`,
+                                windowsAsset?.name || `Control.de.Pagos.Setup.${updateResult.latestVersion}.exe`
+                              )}
+                              disabled={isDownloading}
+                              className={`w-full py-2.5 px-3 font-black rounded-xl text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50 ${
+                                currentPlatform === 'windows'
+                                  ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                                  : 'bg-slate-800 hover:bg-slate-900 text-white dark:bg-slate-700 dark:hover:bg-slate-600'
+                              }`}
+                            >
+                              <Download className="w-4 h-4" />
+                              <span>Descargar Instalador PC (.exe)</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Android APK Card */}
+                        <div className={`p-4 rounded-xl border transition-all flex flex-col justify-between ${
+                          currentPlatform === 'android'
+                            ? 'border-emerald-500/60 bg-emerald-50/70 dark:bg-emerald-950/30 ring-2 ring-emerald-500/20 shadow-sm'
+                            : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/90'
+                        }`}>
+                          <div className="space-y-2">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex items-center gap-2.5">
+                                <div className={`p-2.5 rounded-xl ${
+                                  currentPlatform === 'android'
+                                    ? 'bg-emerald-600 text-white shadow-xs'
+                                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                                }`}>
+                                  <Smartphone className="w-5 h-5" />
+                                </div>
+                                <div>
+                                  <div className="flex items-center gap-1.5">
+                                    <h5 className="text-xs font-black text-slate-900 dark:text-slate-100">
+                                      Aplicación Android (.apk)
+                                    </h5>
+                                    {currentPlatform === 'android' && (
+                                      <span className="text-[9px] font-bold bg-emerald-500 text-white px-1.5 py-0.2 rounded-full uppercase tracking-wider">
+                                        Tu Equipo
+                                      </span>
+                                    )}
+                                  </div>
+                                  <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                                    Para teléfonos y tablets
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="p-2 rounded-lg bg-slate-100/70 dark:bg-slate-800/70 font-mono text-[10px] text-slate-600 dark:text-slate-300 flex items-center justify-between">
+                              <span className="truncate max-w-[170px]" title={androidAsset?.name || 'Control-de-Pagos.apk'}>
+                                {androidAsset?.name || `Control-de-Pagos-v${updateResult.latestVersion}.apk`}
+                              </span>
+                              <span className="font-bold text-slate-500 ml-1">
+                                {androidAsset?.size ? formatFileSize(androidAsset.size) : '~9.7 MB'}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="pt-3">
+                            <button
+                              type="button"
+                              onClick={() => handleStartDownload(
+                                androidAsset?.downloadUrl || `https://github.com/${config.githubRepo}/releases/download/v${updateResult.latestVersion}/Control-de-Pagos-v${updateResult.latestVersion}.apk`,
+                                androidAsset?.name || `Control-de-Pagos-v${updateResult.latestVersion}.apk`
+                              )}
+                              disabled={isDownloading}
+                              className={`w-full py-2.5 px-3 font-black rounded-xl text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50 ${
+                                currentPlatform === 'android'
+                                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                                  : 'bg-slate-800 hover:bg-slate-900 text-white dark:bg-slate-700 dark:hover:bg-slate-600'
+                              }`}
+                            >
+                              <Download className="w-4 h-4" />
+                              <span>Descargar App Android (.apk)</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Secondary link buttons */}
+                      <div className="flex items-center justify-between pt-1">
+                        <a
+                          href={updateResult.htmlUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="py-2 px-3 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                        >
+                          <span>Ver notas y archivos en GitHub</span>
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </a>
+
+                        <button
+                          type="button"
+                          onClick={() => setUpdateResult(null)}
+                          className="py-2 px-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 text-xs font-semibold cursor-pointer"
+                        >
+                          Cerrar aviso
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })()}
 
               </div>
             ) : (
-              <div className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/40 flex items-center gap-3">
-                <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
-                <div className="text-xs">
-                  <span className="font-bold text-emerald-900 dark:text-emerald-200 block">
-                    ¡Tu sistema está completamente al día!
-                  </span>
-                  <span className="text-emerald-700 dark:text-emerald-400">
-                    Estás ejecutando la versión más reciente (v{CURRENT_APP_VERSION}) con todas las funciones activas.
-                  </span>
+              <div className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/40 space-y-3">
+                <div className="flex items-center gap-3">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
+                  <div className="text-xs">
+                    <span className="font-bold text-emerald-900 dark:text-emerald-200 block">
+                      ¡Tu sistema está completamente al día!
+                    </span>
+                    <span className="text-emerald-700 dark:text-emerald-400">
+                      Estás ejecutando la versión más reciente (v{CURRENT_APP_VERSION}) con todas las funciones activas.
+                    </span>
+                  </div>
                 </div>
+
+                {/* Direct download cards for current version */}
+                {(() => {
+                  const currentPlatform = detectCurrentPlatform();
+                  const winUrl = `https://github.com/${config.githubRepo}/releases/download/v${CURRENT_APP_VERSION}/Control.de.Pagos.Setup.${CURRENT_APP_VERSION}.exe`;
+                  const apkUrl = `https://github.com/${config.githubRepo}/releases/download/v${CURRENT_APP_VERSION}/Control-de-Pagos-v${CURRENT_APP_VERSION}.apk`;
+
+                  return (
+                    <div className="pt-2 border-t border-emerald-200/60 dark:border-emerald-800/40 space-y-2">
+                      <span className="text-[11px] font-bold text-emerald-950 dark:text-emerald-300 block">
+                        Descargar instaladores oficiales de esta versión (v{CURRENT_APP_VERSION}):
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleStartDownload(winUrl, `Control.de.Pagos.Setup.${CURRENT_APP_VERSION}.exe`)}
+                          disabled={isDownloading}
+                          className={`py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                            currentPlatform === 'windows'
+                              ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-xs'
+                              : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 hover:bg-slate-50'
+                          }`}
+                        >
+                          <Laptop className="w-3.5 h-3.5" />
+                          <span>Descargar Instalador PC (.exe)</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleStartDownload(apkUrl, `Control-de-Pagos-v${CURRENT_APP_VERSION}.apk`)}
+                          disabled={isDownloading}
+                          className={`py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                            currentPlatform === 'android'
+                              ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs'
+                              : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 hover:bg-slate-50'
+                          }`}
+                        >
+                          <Smartphone className="w-3.5 h-3.5" />
+                          <span>Descargar App Android (.apk)</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             )}
           </div>
