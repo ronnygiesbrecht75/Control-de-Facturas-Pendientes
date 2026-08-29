@@ -1,7 +1,7 @@
 {
-  "name": "react-example",
+  "name": "control-de-pagos",
   "private": true,
-  "version": "1.4.0",
+  "version": "1.5.0",
   "type": "module",
   "main": "electron-main.js",
   "scripts": {
@@ -21,7 +21,6 @@
     "@capacitor/share": "^7.0.0",
     "@capacitor/status-bar": "^7.0.0",
     "@capgo/capacitor-native-biometric": "^8.6.6",
-    "@google/genai": "^2.4.0",
     "@tailwindcss/vite": "^4.1.14",
     "@vitejs/plugin-react": "^5.0.4",
     "dotenv": "^17.2.3",

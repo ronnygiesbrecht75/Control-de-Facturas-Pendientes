@@ -9,7 +9,7 @@ function createWindow() {
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
-    title: 'Control de Pagos v1.2',
+    title: 'Control de Pagos',
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,

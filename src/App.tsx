@@ -866,10 +866,10 @@ export default function App() {
       </aside>
 
       {/* RIGHT WORKSPACE AREA - Takes remaining space on desktop */}
-      <div className="flex-1 flex flex-col min-h-screen min-w-0">
+      <div className={`flex-1 flex flex-col min-w-0 ${currentTab === 'ajustes' ? 'lg:h-screen lg:overflow-hidden min-h-screen' : 'min-h-screen'}`}>
         
         {/* Fixed Header / Navbar - stays completely static while scrolling */}
-        <header className="sticky top-0 z-40 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 shadow-sm backdrop-blur-md bg-white/95 dark:bg-slate-800/95">
+        <header className="sticky top-0 z-40 shrink-0 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 shadow-sm backdrop-blur-md bg-white/95 dark:bg-slate-800/95">
           <div className="w-full max-w-full px-3 sm:px-4 lg:px-8 py-2.5 sm:py-3 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 sm:gap-3 min-w-0">
               {/* Mobile menu trigger */}
@@ -1071,8 +1071,8 @@ export default function App() {
         )}
 
         {/* ACTIVE WORKSPACE ZONE */}
-        <div className="w-full max-w-full px-4 lg:px-8 py-6 flex-1">
-          <main className="space-y-6">
+        <div className={`w-full max-w-full px-4 lg:px-8 ${currentTab === 'ajustes' ? 'py-4 lg:py-5 flex-1 min-h-0 flex flex-col lg:overflow-hidden' : 'py-6 flex-1'}`}>
+          <main className={currentTab === 'ajustes' ? 'flex-1 min-h-0 flex flex-col' : 'space-y-6'}>
             {currentTab === 'registrar-factura' && (
               <RegistrarFactura 
                 onAddInvoice={handleAddInvoice} 

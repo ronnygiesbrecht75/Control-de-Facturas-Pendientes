@@ -1,9 +1,7 @@
 {
   "name": "Remix Control de Pagos",
-  "description": "Aplicación para gestionar facturas y pagos (Facturas, Otras y Cristian) con formato Paraguayo, registro por voz con IA para repartidores, modo oscuro, respaldos locales y exportación de resúmenes.",
-  "requestFramePermissions": [
-    "microphone"
-  ],
+  "description": "Aplicación para gestionar facturas y pagos (Facturas, Otras y Cristian) con formato Paraguayo, módulo móvil para repartidores, modo oscuro, respaldos locales y exportación de resúmenes.",
+  "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
   ]

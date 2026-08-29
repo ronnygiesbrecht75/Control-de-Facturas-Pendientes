@@ -37,7 +37,7 @@ self.addEventListener('fetch', (event) => {
     event.request.url.includes('/@') || 
     event.request.url.includes('/src/') || 
     event.request.url.includes('node_modules') ||
-    event.request.url.includes('ais-dev')
+    event.request.url.includes('run.app')
   ) {
     return;
   }

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export const CURRENT_APP_VERSION = '1.4.0';
+export const CURRENT_APP_VERSION = '1.5.0';
 
 export interface ReleaseAsset {
   name: string;
@@ -202,12 +202,12 @@ export async function checkForAppUpdates(customRepo?: string): Promise<UpdateInf
     releaseName: `Control de Pagos v${CURRENT_APP_VERSION} (Al Día)`,
     releaseDate: nowStr,
     releaseNotes: [
-      'Versión v1.4.0 instalada y operativa.',
-      'Soporte completo y descarga diferenciada automática de instaladores (.exe para PC y .apk para móviles).',
-      'Carga inteligente de cobros con IA (Gemini): dictado por voz y asistente por teclado.',
-      'Diagnóstico interactivo y guía paso a paso para permisos de micrófono.',
-      'Soporte completo para facturas y montos en Guaraníes (PYG).',
-      'Módulo de Cobro Repartidor Móvil con registro directo.'
+      'Versión v1.5.0 instalada y operativa.',
+      'Panel de Ajustes desacoplado con columna fija y scroll de contenido independiente.',
+      'Soporte completo y descarga de instaladores (.exe para PC y .apk para móviles).',
+      'Soporte oficial para facturas y montos en Guaraníes (PYG) con formato paraguayo.',
+      'Módulo de Cobro Repartidor Móvil optimizado para registro táctil rápido y navegación fluida.',
+      'Sincronización híbrida en tiempo real con Firebase Firestore y persistencia local sin conexión.'
     ],
     htmlUrl: `https://github.com/${repo}/releases`,
     assets: [
@@ -228,7 +228,7 @@ export async function checkForAppUpdates(customRepo?: string): Promise<UpdateInf
 }
 
 // Simulates an update check for testing / demo purposes
-export function simulateNewVersionCheck(simulatedVersion: string = '1.5.0'): UpdateInfo {
+export function simulateNewVersionCheck(simulatedVersion: string = '1.6.0'): UpdateInfo {
   return {
     hasUpdate: isNewerVersion(simulatedVersion, CURRENT_APP_VERSION),
     currentVersion: CURRENT_APP_VERSION,
@@ -236,7 +236,7 @@ export function simulateNewVersionCheck(simulatedVersion: string = '1.5.0'): Upd
     releaseName: `Control de Pagos v${simulatedVersion} - Actualización Disponible`,
     releaseDate: new Date().toISOString(),
     releaseNotes: [
-      '🚀 Próxima versión v1.5.0 en preparación.',
+      '🚀 Próxima versión v1.6.0 en preparación.',
       '📊 Nuevos filtros avanzados de auditoría y estadísticas.',
       '🔄 Sincronización multi-dispositivo en tiempo real mejorada.',
       '🛠️ Optimización general de rendimiento y menor consumo de memoria.'

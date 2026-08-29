@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
     inputs:
       version_tag:
-        description: 'Etiqueta de versión (ej: v1.4.0). Dejar vacío para usar la versión de package.json'
+        description: 'Etiqueta de versión (ej: v1.5.0). Dejar vacío para usar la versión de package.json'
         required: false
         default: ''
 
