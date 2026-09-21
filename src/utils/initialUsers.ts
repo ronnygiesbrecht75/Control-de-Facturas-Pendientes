@@ -7,6 +7,7 @@ import { UserAccount, UserPermissions } from '../types';
 
 export const allPermissionsTrue: UserPermissions = {
   'registrar-factura': true,
+  'registrar-remision': true,
   'registrar-pagos': true,
   'cobro-movil': true,
   'facturas-pendientes': true,
@@ -19,6 +20,7 @@ export const allPermissionsTrue: UserPermissions = {
 
 export const TAB_LABELS: Record<keyof UserPermissions, string> = {
   'registrar-factura': 'Registrar Facturas',
+  'registrar-remision': 'Registrar Remisión',
   'registrar-pagos': 'Registrar Pagos',
   'cobro-movil': 'Cobro Repartidor (Móvil)',
   'facturas-pendientes': 'Facturas Pendientes',
@@ -45,6 +47,7 @@ export const initialUsers: UserAccount[] = [
     role: 'user',
     permissions: {
       'registrar-factura': false,
+      'registrar-remision': false,
       'registrar-pagos': false,
       'cobro-movil': true,
       'facturas-pendientes': true,

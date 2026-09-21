@@ -30,10 +30,12 @@ export interface PaymentDetails {
 export interface Invoice {
   id: string;
   category: InvoiceCategory;
+  documentType?: 'factura' | 'remision';
+  remisionNumero?: string; // Número único de remisión (p. ej. "10543")
   clientName: string;
   sucursal: string; // e.g. "001"
   caja: string;     // e.g. "009"
-  numero: string;   // e.g. "0006493"
+  numero: string;   // e.g. "0006493" o número de remisión
   amount: number;   // Monto Facturado in PYG (Guaraníes)
   invoiceDate: string; // YYYY-MM-DD
   terms: number;    // Termino (Dias) - defaults to 0
@@ -46,6 +48,7 @@ export interface Invoice {
 
 export type TabId = 
   | 'registrar-factura'
+  | 'registrar-remision'
   | 'registrar-pagos'
   | 'cobro-movil'
   | 'facturas-pendientes'
@@ -57,6 +60,7 @@ export type TabId =
 
 export interface UserPermissions {
   'registrar-factura': boolean;
+  'registrar-remision': boolean;
   'registrar-pagos': boolean;
   'cobro-movil': boolean;
   'facturas-pendientes': boolean;

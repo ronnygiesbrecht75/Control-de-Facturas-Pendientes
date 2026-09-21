@@ -206,10 +206,13 @@ export async function generateInvoicesPDF(
   // Total width: 182mm (Margen 14mm a cada lado)
   // Columns: Cliente(50), N° Factura(25), CAT.(11), Emisión(19), Plazo(11), Vence(19), Estado(23), Monto(24) = 182mm
   const tableRows = invoices.map((inv) => {
+    const isRemision = inv.documentType === 'remision';
     const dueDateStr = calculateDueDateString(inv.invoiceDate, inv.terms || 0);
     const status = getInvoiceStatus(inv, options.systemDate);
     const daysDiff = getDaysDifference(dueDateStr, options.systemDate);
-    const formattedNum = formatInvoiceNumber(inv.sucursal, inv.caja, inv.numero);
+    const formattedNum = isRemision
+      ? `Rem. ${inv.remisionNumero || inv.numero}`
+      : formatInvoiceNumber(inv.sucursal, inv.caja, inv.numero);
 
     let statusText: string = status;
     if (status === 'A Vencer') {
@@ -223,9 +226,9 @@ export async function generateInvoicesPDF(
     return [
       inv.clientName,
       formattedNum,
-      formatCategoryShort(inv.category),
+      isRemision ? 'REM.' : formatCategoryShort(inv.category),
       formatDateDMY(inv.invoiceDate),
-      inv.terms ? `${inv.terms}d` : 'Cont.',
+      isRemision ? 'Rem.' : (inv.terms ? `${inv.terms}d` : 'Cont.'),
       formatDateDMY(dueDateStr),
       statusText,
       formatMoneyPDF(inv.amount),
@@ -236,7 +239,7 @@ export async function generateInvoicesPDF(
     startY: currentY,
     head: [[
       'Cliente', 
-      'N° Factura', 
+      'N° Doc / Factura', 
       'CAT.', 
       'Emisión', 
       'Plazo', 

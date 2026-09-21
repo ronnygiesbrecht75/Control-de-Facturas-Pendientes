@@ -51,6 +51,11 @@ export function getInvoiceStatus(
   if (invoice.paid) {
     return 'Pagado';
   }
+
+  // Remisiones do not expire
+  if (invoice.documentType === 'remision') {
+    return 'A Vencer';
+  }
   
   const dueDateStr = calculateDueDateString(invoice.invoiceDate, invoice.terms);
   if (!dueDateStr) return 'A Vencer';

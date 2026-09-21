@@ -52,6 +52,7 @@ import { StatusBar, Style } from '@capacitor/status-bar';
 // Subcomponents
 import LockScreen from './components/LockScreen';
 import RegistrarFactura from './components/RegistrarFactura';
+import RegistrarRemision from './components/RegistrarRemision';
 import FacturasPendientes from './components/FacturasPendientes';
 import FacturaList from './components/FacturaList';
 import RegistrarPagos from './components/RegistrarPagos';
@@ -64,10 +65,8 @@ import { getUpdateConfig, checkForAppUpdates, UpdateInfo, CURRENT_APP_VERSION } 
 // Icons for navigation sidebar - all from lucide-react as required
 import { 
   PlusCircle, 
-  Flame, 
-  Layers, 
-  Briefcase, 
-  UserCheck, 
+  Clock, 
+  FileText,
   CreditCard, 
   Settings2,
   Calendar,
@@ -338,6 +337,7 @@ export default function App() {
       if (!hasTabPermission(currentTab)) {
         const allTabs: TabId[] = [
           'registrar-factura',
+          'registrar-remision',
           'registrar-pagos',
           'cobro-movil',
           'facturas-pendientes',
@@ -655,6 +655,21 @@ export default function App() {
                 </button>
               )}
 
+              {hasTabPermission('registrar-remision') && (
+                <button
+                  id="sidebar-tab-registrar-remision"
+                  onClick={() => setCurrentTab('registrar-remision')}
+                  className={`w-full flex items-center gap-3 p-3 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer ${
+                    currentTab === 'registrar-remision'
+                      ? 'bg-[#0f172a] text-white shadow-md'
+                      : 'text-slate-900 hover:bg-amber-600/30 hover:text-slate-950'
+                  }`}
+                >
+                  <PlusCircle className="w-4 h-4" />
+                  <span>Registrar Remisión</span>
+                </button>
+              )}
+
               {hasTabPermission('registrar-pagos') && (
                 <button
                   id="sidebar-tab-registrar-pagos"
@@ -665,7 +680,7 @@ export default function App() {
                       : 'text-slate-900 hover:bg-amber-600/30 hover:text-slate-950'
                   }`}
                 >
-                  <CreditCard className="w-4 h-4" />
+                  <PlusCircle className="w-4 h-4" />
                   <span>Registrar Pagos</span>
                 </button>
               )}
@@ -680,7 +695,7 @@ export default function App() {
                       : 'text-slate-900 hover:bg-amber-600/30 hover:text-slate-950'
                   }`}
                 >
-                  <Smartphone className="w-4 h-4 text-slate-950 dark:text-amber-400" />
+                  <PlusCircle className="w-4 h-4" />
                   <span>Cobro Repartidor (Móvil)</span>
                 </button>
               )}
@@ -696,7 +711,7 @@ export default function App() {
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <Flame className="w-4 h-4" />
+                    <Clock className="w-4 h-4" />
                     <span>Facturas Pendientes</span>
                   </div>
                   {overdueCount > 0 ? (
@@ -713,21 +728,14 @@ export default function App() {
                 <button
                   id="sidebar-tab-facturas"
                   onClick={() => setCurrentTab('facturas')}
-                  className={`w-full flex items-center justify-between p-3 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer ${
+                  className={`w-full flex items-center gap-3 p-3 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer ${
                     currentTab === 'facturas'
                       ? 'bg-[#0f172a] text-white shadow-md'
                       : 'text-slate-900 hover:bg-amber-600/30 hover:text-slate-950'
                   }`}
                 >
-                  <div className="flex items-center gap-3">
-                    <Layers className="w-4 h-4" />
-                    <span>Facturas (Gral.)</span>
-                  </div>
-                  <span className={`font-mono text-[10px] px-2 py-0.5 rounded ${
-                    currentTab === 'facturas' ? 'bg-white/20 text-white font-bold' : 'bg-slate-950/10 text-slate-900 font-bold'
-                  }`}>
-                    {invoices.filter(i => i.category === 'Facturas').length}
-                  </span>
+                  <FileText className="w-4 h-4" />
+                  <span>Facturas (Gral.)</span>
                 </button>
               )}
 
@@ -735,21 +743,14 @@ export default function App() {
                 <button
                   id="sidebar-tab-otras-facturas"
                   onClick={() => setCurrentTab('otras-facturas')}
-                  className={`w-full flex items-center justify-between p-3 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer ${
+                  className={`w-full flex items-center gap-3 p-3 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer ${
                     currentTab === 'otras-facturas'
                       ? 'bg-[#0f172a] text-white shadow-md'
                       : 'text-slate-900 hover:bg-amber-600/30 hover:text-slate-950'
                   }`}
                 >
-                  <div className="flex items-center gap-3">
-                    <Briefcase className="w-4 h-4" />
-                    <span>Otras Facturas</span>
-                  </div>
-                  <span className={`font-mono text-[10px] px-2 py-0.5 rounded ${
-                    currentTab === 'otras-facturas' ? 'bg-white/20 text-white font-bold' : 'bg-slate-950/10 text-slate-900 font-bold'
-                  }`}>
-                    {invoices.filter(i => i.category === 'Otras').length}
-                  </span>
+                  <FileText className="w-4 h-4" />
+                  <span>Otras Facturas</span>
                 </button>
               )}
 
@@ -757,21 +758,14 @@ export default function App() {
                 <button
                   id="sidebar-tab-cristian"
                   onClick={() => setCurrentTab('cristian-facturas')}
-                  className={`w-full flex items-center justify-between p-3 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer ${
+                  className={`w-full flex items-center gap-3 p-3 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer ${
                     currentTab === 'cristian-facturas'
                       ? 'bg-[#0f172a] text-white shadow-md'
                       : 'text-slate-900 hover:bg-amber-600/30 hover:text-slate-950'
                   }`}
                 >
-                  <div className="flex items-center gap-3">
-                    <UserCheck className="w-4 h-4" />
-                    <span>Cristian</span>
-                  </div>
-                  <span className={`font-mono text-[10px] px-2 py-0.5 rounded ${
-                    currentTab === 'cristian-facturas' ? 'bg-white/20 text-white font-bold' : 'bg-slate-950/10 text-slate-900 font-bold'
-                  }`}>
-                    {invoices.filter(i => i.category === 'Cristian').length}
-                  </span>
+                  <FileText className="w-4 h-4" />
+                  <span>Cristian</span>
                 </button>
               )}
 
@@ -779,21 +773,14 @@ export default function App() {
                 <button
                   id="sidebar-tab-clientes"
                   onClick={() => setCurrentTab('clientes')}
-                  className={`w-full flex items-center justify-between p-3 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer ${
+                  className={`w-full flex items-center gap-3 p-3 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer ${
                     currentTab === 'clientes'
                       ? 'bg-[#0f172a] text-white shadow-md'
                       : 'text-slate-900 hover:bg-amber-600/30 hover:text-slate-950'
                   }`}
                 >
-                  <div className="flex items-center gap-3">
-                    <Users className="w-4 h-4" />
-                    <span>Clientes</span>
-                  </div>
-                  <span className={`font-mono text-[10px] px-2 py-0.5 rounded ${
-                    currentTab === 'clientes' ? 'bg-white/20 text-white font-bold' : 'bg-slate-950/10 text-slate-900 font-bold'
-                  }`}>
-                    {clients.length}
-                  </span>
+                  <Users className="w-4 h-4" />
+                  <span>Clientes</span>
                 </button>
               )}
             </div>
@@ -983,12 +970,13 @@ export default function App() {
                     <span className="text-[9px] text-slate-900/60 font-black uppercase tracking-wider block px-2 mb-1.5 font-mono">Control Central</span>
                     {[
                       { id: 'registrar-factura', label: 'Registrar Factura', icon: PlusCircle },
-                      { id: 'registrar-pagos', label: 'Registrar Pagos', icon: CreditCard },
-                      { id: 'cobro-movil', label: 'Cobro Repartidor (Móvil)', icon: Smartphone },
-                      { id: 'facturas-pendientes', label: 'Facturas Pendientes', icon: Flame },
-                      { id: 'facturas', label: 'Facturas (Gral.)', icon: Layers },
-                      { id: 'otras-facturas', label: 'Otras Facturas', icon: Briefcase },
-                      { id: 'cristian-facturas', label: 'Cristian', icon: UserCheck },
+                      { id: 'registrar-remision', label: 'Registrar Remisión', icon: PlusCircle },
+                      { id: 'registrar-pagos', label: 'Registrar Pagos', icon: PlusCircle },
+                      { id: 'cobro-movil', label: 'Cobro Repartidor (Móvil)', icon: PlusCircle },
+                      { id: 'facturas-pendientes', label: 'Facturas Pendientes', icon: Clock },
+                      { id: 'facturas', label: 'Facturas (Gral.)', icon: FileText },
+                      { id: 'otras-facturas', label: 'Otras Facturas', icon: FileText },
+                      { id: 'cristian-facturas', label: 'Cristian', icon: FileText },
                       { id: 'clientes', label: 'Clientes', icon: Users },
                     ].filter(tab => hasTabPermission(tab.id)).map((tab) => {
                       const TabIcon = tab.icon;
@@ -1075,6 +1063,14 @@ export default function App() {
           <main className={currentTab === 'ajustes' ? 'flex-1 min-h-0 flex flex-col' : 'space-y-6'}>
             {currentTab === 'registrar-factura' && (
               <RegistrarFactura 
+                onAddInvoice={handleAddInvoice} 
+                systemDate={systemDate} 
+                clients={clients}
+              />
+            )}
+
+            {currentTab === 'registrar-remision' && (
+              <RegistrarRemision 
                 onAddInvoice={handleAddInvoice} 
                 systemDate={systemDate} 
                 clients={clients}

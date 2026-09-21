@@ -4,6 +4,7 @@
  */
 
 import { UserAccount } from '../types';
+import { allPermissionsTrue } from './initialUsers';
 import { Capacitor } from '@capacitor/core';
 import { NativeBiometric } from '@capgo/capacitor-native-biometric';
 
@@ -333,17 +334,7 @@ export async function authenticateWithBiometrics(
         username: stored.username,
         passwordHash: '',
         role: stored.userRole || 'admin',
-        permissions: {
-          'registrar-factura': true,
-          'registrar-pagos': true,
-          'cobro-movil': true,
-          'facturas-pendientes': true,
-          'facturas': true,
-          'otras-facturas': true,
-          'cristian-facturas': true,
-          'clientes': true,
-          'ajustes': true,
-        },
+        permissions: { ...allPermissionsTrue },
       };
 
       return {
@@ -367,17 +358,7 @@ export async function authenticateWithBiometrics(
         username: stored.username,
         passwordHash: '',
         role: stored.userRole || 'admin',
-        permissions: {
-          'registrar-factura': true,
-          'registrar-pagos': true,
-          'cobro-movil': true,
-          'facturas-pendientes': true,
-          'facturas': true,
-          'otras-facturas': true,
-          'cristian-facturas': true,
-          'clientes': true,
-          'ajustes': true,
-        },
+        permissions: { ...allPermissionsTrue },
       };
 
       return {
@@ -451,17 +432,7 @@ export async function authenticateWithBiometrics(
         username: stored.username,
         passwordHash: '',
         role: stored.userRole || 'admin',
-        permissions: {
-          'registrar-factura': true,
-          'registrar-pagos': true,
-          'cobro-movil': true,
-          'facturas-pendientes': true,
-          'facturas': true,
-          'otras-facturas': true,
-          'cristian-facturas': true,
-          'clientes': true,
-          'ajustes': true,
-        },
+        permissions: { ...allPermissionsTrue },
       };
 
       return {

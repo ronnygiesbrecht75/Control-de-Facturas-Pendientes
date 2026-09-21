@@ -25,7 +25,8 @@ import {
   Clock,
   Layers,
   FileText,
-  Eye
+  Eye,
+  ChevronDown
 } from 'lucide-react';
 import { generateInvoicesPDF } from '../utils/pdfExport';
 import InvoiceDetailModal from './InvoiceDetailModal';
@@ -59,6 +60,7 @@ interface FacturasPendientesProps {
 export default function FacturasPendientes({ invoices, systemDate }: FacturasPendientesProps) {
   const [sortBy, setSortBy] = useState<SortOption>('num-asc');
   const [search, setSearch] = useState('');
+  const [docTypeFilter, setDocTypeFilter] = useState<'all' | 'facturas' | 'remisiones'>('all');
   const [categoryFilter, setCategoryFilter] = useState<'Todas' | InvoiceCategory>('Todas');
   const [statusFilter, setStatusFilter] = useState<'Todos' | 'Vencido' | 'A Vencer'>('Todos');
   const [invoiceToView, setInvoiceToView] = useState<Invoice | null>(null);
@@ -93,17 +95,25 @@ export default function FacturasPendientes({ invoices, systemDate }: FacturasPen
     };
   });
 
-  // Filter items by category, status, and search term
+  // Filter items by docType, category, status, and search term
   const filteredItems = allCalculatedItems.filter((item) => {
+    const matchesDocType = 
+      docTypeFilter === 'all' 
+        ? true 
+        : docTypeFilter === 'remisiones' 
+          ? item.documentType === 'remision' 
+          : item.documentType !== 'remision';
+
     const matchesCategory = categoryFilter === 'Todas' || item.category === categoryFilter;
     const matchesStatus = statusFilter === 'Todos' || item.status === statusFilter;
     const formattedNum = formatInvoiceNumber(item.sucursal, item.caja, item.numero);
     const matchesSearch = 
       item.clientName.toLowerCase().includes(search.toLowerCase()) ||
       formattedNum.includes(search) ||
-      (item.numero && item.numero.includes(search));
+      (item.numero && item.numero.includes(search)) ||
+      (item.remisionNumero && item.remisionNumero.includes(search));
 
-    return matchesCategory && matchesStatus && matchesSearch;
+    return matchesDocType && matchesCategory && matchesStatus && matchesSearch;
   });
 
   // Sorted items
@@ -222,100 +232,116 @@ export default function FacturasPendientes({ invoices, systemDate }: FacturasPen
 
       </div>
 
-      {/* Control Bar: Categorías, Filtros de Estado y Buscador */}
-      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-4 space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+      {/* Control Bar: Documentos, Categoría, Estado y Acciones con selectores compactos */}
+      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-3.5 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2.5">
           
-          {/* Selector de Categorías */}
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1 mr-1">
-              <Layers className="w-3.5 h-3.5" /> Categoría:
-            </span>
-            {(['Todas', 'Facturas', 'Cristian', 'Otras'] as const).map((cat) => {
-              const isSelected = categoryFilter === cat;
-              const countInCat = cat === 'Todas' 
-                ? pendingInvoices.length 
-                : pendingInvoices.filter(i => i.category === cat).length;
-
-              return (
-                <button
-                  key={cat}
-                  type="button"
-                  onClick={() => setCategoryFilter(cat)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                    isSelected
-                      ? 'bg-slate-900 dark:bg-amber-500 text-white dark:text-slate-950 shadow-xs'
-                      : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
-                  }`}
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* 1. Selector de Documentos */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                Documentos:
+              </span>
+              <div className="relative">
+                <select
+                  id="doc-type-filter-pendientes"
+                  value={docTypeFilter}
+                  onChange={(e) => setDocTypeFilter(e.target.value as 'all' | 'facturas' | 'remisiones')}
+                  className="appearance-none pl-2.5 pr-8 py-1.5 bg-amber-50/60 dark:bg-slate-950 text-slate-900 dark:text-slate-100 border border-amber-300 dark:border-amber-600/50 text-xs font-bold rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-xs cursor-pointer"
                 >
-                  <span>{cat}</span>
-                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                    isSelected 
-                      ? 'bg-white/20 text-white dark:text-slate-950' 
-                      : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
-                  }`}>
-                    {countInCat}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Filtro de Estado (Todos / Vencidos / A Vencer) y Botón PDF */}
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <button
-                type="button"
-                onClick={() => setStatusFilter('Todos')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                  statusFilter === 'Todos'
-                    ? 'bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900'
-                    : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
-                }`}
-              >
-                Todos ({allCalculatedItems.length})
-              </button>
-              <button
-                type="button"
-                onClick={() => setStatusFilter('Vencido')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                  statusFilter === 'Vencido'
-                    ? 'bg-rose-600 text-white shadow-xs'
-                    : 'bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 hover:bg-rose-100'
-                }`}
-              >
-                <FileWarning className="w-3.5 h-3.5" />
-                Solo Vencidos ({countVencido})
-              </button>
-              <button
-                type="button"
-                onClick={() => setStatusFilter('A Vencer')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                  statusFilter === 'A Vencer'
-                    ? 'bg-amber-600 text-white shadow-xs'
-                    : 'bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400 hover:bg-amber-100'
-                }`}
-              >
-                <Clock className="w-3.5 h-3.5" />
-                A Vencer ({countAVencer})
-              </button>
+                  <option value="all">Facturas y Remisiones</option>
+                  <option value="facturas">Solo Facturas</option>
+                  <option value="remisiones">Solo Remisiones</option>
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2 text-amber-600 dark:text-amber-400">
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </div>
+              </div>
             </div>
 
-            <button
-              type="button"
-              id="export-pdf-btn-pendientes"
-              onClick={handleExportPDF}
-              title="Descargar o imprimir reporte PDF según la búsqueda y categoría actual"
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold rounded-lg shadow-sm transition-all cursor-pointer whitespace-nowrap"
-            >
-              <FileText className="w-3.5 h-3.5" />
-              <span>Hacer PDF ({sortedTableItems.length})</span>
-            </button>
+            {/* 2. Selector de Categoría (Compacto con flecha) */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap flex items-center gap-1">
+                <Layers className="w-3.5 h-3.5" /> Categoría:
+              </span>
+              <div className="relative">
+                <select
+                  id="category-filter-pendientes"
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value as 'Todas' | InvoiceCategory)}
+                  className="appearance-none pl-2.5 pr-8 py-1.5 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 text-xs font-bold rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-xs cursor-pointer"
+                >
+                  <option value="Todas">Todas las Categorías ({pendingInvoices.length})</option>
+                  <option value="Facturas">Facturas ({pendingInvoices.filter(i => i.category === 'Facturas').length})</option>
+                  <option value="Otras">Otras Facturas ({pendingInvoices.filter(i => i.category === 'Otras').length})</option>
+                  <option value="Cristian">Facturas Cristian ({pendingInvoices.filter(i => i.category === 'Cristian').length})</option>
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2 text-slate-500 dark:text-slate-400">
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </div>
+              </div>
+            </div>
+
+            {/* 3. Selector de Estado (Compacto con flecha) */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                Estado:
+              </span>
+              <div className="relative">
+                <select
+                  id="status-filter-pendientes"
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value as 'Todos' | 'Vencido' | 'A Vencer')}
+                  className="appearance-none pl-2.5 pr-8 py-1.5 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 text-xs font-bold rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-xs cursor-pointer"
+                >
+                  <option value="Todos">Todos los Estados ({allCalculatedItems.length})</option>
+                  <option value="Vencido">Solo Vencidos ({countVencido})</option>
+                  <option value="A Vencer">A Vencer ({countAVencer})</option>
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2 text-slate-500 dark:text-slate-400">
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </div>
+              </div>
+            </div>
+
+            {/* 4. Selector de Ordenación (Movido arriba) */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                Ordenar por:
+              </span>
+              <div className="relative">
+                <select
+                  id="sort-select-pendientes"
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as SortOption)}
+                  className="appearance-none pl-2.5 pr-8 py-1.5 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 text-xs font-bold rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-xs cursor-pointer"
+                >
+                  {sortOptions.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                <ArrowUpDown className="w-3.5 h-3.5 pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-amber-500" />
+              </div>
+            </div>
           </div>
+
+          {/* Botón PDF */}
+          <button
+            type="button"
+            id="export-pdf-btn-pendientes"
+            onClick={handleExportPDF}
+            title="Descargar o imprimir reporte PDF según la búsqueda y categoría actual"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold rounded-lg shadow-sm transition-all cursor-pointer whitespace-nowrap"
+          >
+            <FileText className="w-3.5 h-3.5" />
+            <span>Hacer PDF ({sortedTableItems.length})</span>
+          </button>
 
         </div>
 
-        {/* Buscador & Ordenación */}
+        {/* Buscador & Contador */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 border-t border-slate-100 dark:border-slate-700/60">
           <div className="relative w-full sm:w-80">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -337,30 +363,9 @@ export default function FacturasPendientes({ invoices, systemDate }: FacturasPen
             )}
           </div>
 
-          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">
-              Ordenar por:
-            </span>
-            <div className="relative">
-              <select
-                id="sort-select-pendientes"
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as SortOption)}
-                className="appearance-none pl-3 pr-8 py-1.5 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 text-xs font-bold rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 cursor-pointer"
-              >
-                {sortOptions.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-              <ArrowUpDown className="w-3.5 h-3.5 pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-amber-500" />
-            </div>
-
-            <span className="bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 text-xs px-2.5 py-1.5 rounded-lg font-bold border border-amber-200 dark:border-amber-800">
-              {sortedTableItems.length} facturas
-            </span>
-          </div>
+          <span className="bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 text-xs px-2.5 py-1.5 rounded-lg font-bold border border-amber-200 dark:border-amber-800">
+            {sortedTableItems.length} {sortedTableItems.length === 1 ? 'documento pendiente' : 'documentos pendientes'}
+          </span>
         </div>
       </div>
 
@@ -423,9 +428,18 @@ export default function FacturasPendientes({ invoices, systemDate }: FacturasPen
                         {item.clientName}
                       </td>
 
-                      {/* N° Factura (1 Sola Línea sin partir) */}
+                      {/* N° Factura / Remisión (1 Sola Línea sin partir) */}
                       <td className="py-1.5 px-3 font-mono font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap tracking-wide text-xs">
-                        {formatInvoiceNumber(item.sucursal, item.caja, item.numero)}
+                        {item.documentType === 'remision' ? (
+                          <div className="flex items-center gap-1.5 font-mono font-bold text-amber-600 dark:text-amber-400">
+                            <span className="text-[9px] px-1 py-0.2 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 font-sans uppercase font-black">
+                              REM
+                            </span>
+                            <span>{item.remisionNumero || item.numero}</span>
+                          </div>
+                        ) : (
+                          formatInvoiceNumber(item.sucursal, item.caja, item.numero)
+                        )}
                       </td>
 
                       {/* Categoría */}
@@ -453,17 +467,22 @@ export default function FacturasPendientes({ invoices, systemDate }: FacturasPen
 
                       {/* Término */}
                       <td className="py-1.5 px-2 text-center font-medium text-slate-600 dark:text-slate-400 text-xs whitespace-nowrap">
-                        {item.terms && item.terms > 0 ? `${item.terms}d` : 'Contado'}
+                        {item.documentType === 'remision' ? '-' : (item.terms && item.terms > 0 ? `${item.terms}d` : 'Contado')}
                       </td>
 
                       {/* Vencimiento */}
                       <td className="py-1.5 px-2.5 text-center font-mono font-medium text-[11px] text-slate-700 dark:text-slate-300 whitespace-nowrap">
-                        {formatDateDMY(item.dueDateStr)}
+                        {item.documentType === 'remision' ? '-' : formatDateDMY(item.dueDateStr)}
                       </td>
 
                       {/* Estado / Días (Ancho y sin partir) */}
                       <td className="py-1.5 px-3 text-right whitespace-nowrap">
-                        {isOverdue ? (
+                        {item.documentType === 'remision' ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60 font-mono whitespace-nowrap">
+                            <Clock className="w-3 h-3 text-amber-600" />
+                            Remisión
+                          </span>
+                        ) : isOverdue ? (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/60 font-mono whitespace-nowrap">
                             <FileWarning className="w-3 h-3 text-rose-600" />
                             Vencido ({Math.abs(item.daysDiff)}d)

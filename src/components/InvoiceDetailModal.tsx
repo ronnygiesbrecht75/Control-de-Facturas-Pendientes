@@ -49,7 +49,10 @@ export default function InvoiceDetailModal({
 }: InvoiceDetailModalProps) {
   if (!isOpen || !invoice) return null;
 
-  const formattedNumber = formatInvoiceNumber(invoice.sucursal, invoice.caja, invoice.numero);
+  const isRemision = invoice.documentType === 'remision';
+  const formattedNumber = isRemision 
+    ? (invoice.remisionNumero || invoice.numero)
+    : formatInvoiceNumber(invoice.sucursal, invoice.caja, invoice.numero);
   const dueDateStr = calculateDueDateString(invoice.invoiceDate, invoice.terms);
   const status = getInvoiceStatus(invoice, systemDate);
   const daysDiff = getDaysDifference(dueDateStr, systemDate);
@@ -118,11 +121,11 @@ export default function InvoiceDetailModal({
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="text-base sm:text-lg font-bold font-display tracking-tight text-white">
-                  Revisión Completa de Factura
+                  {isRemision ? 'Revisión de Venta de Remisión' : 'Revisión Completa de Factura'}
                 </h3>
               </div>
               <p className="text-xs text-slate-400 font-mono">
-                N° {formattedNumber}
+                {isRemision ? 'Remisión' : 'Factura'} N° {formattedNumber}
               </p>
             </div>
           </div>
@@ -230,7 +233,7 @@ export default function InvoiceDetailModal({
 
               {/* Número Completo */}
               <div>
-                <span className="text-slate-400 text-[11px] block">N° de Factura Completo</span>
+                <span className="text-slate-400 text-[11px] block">{isRemision ? 'N° de Remisión' : 'N° de Factura Completo'}</span>
                 <span className="font-mono font-bold text-slate-800 dark:text-slate-200 text-xs">
                   {formattedNumber}
                 </span>
@@ -238,7 +241,7 @@ export default function InvoiceDetailModal({
 
               {/* Fecha Emisión */}
               <div>
-                <span className="text-slate-400 text-[11px] block">Fecha de Emisión</span>
+                <span className="text-slate-400 text-[11px] block">{isRemision ? 'Fecha de Remisión' : 'Fecha de Emisión'}</span>
                 <span className="font-mono font-bold text-slate-800 dark:text-slate-200 text-xs">
                   {formatDateDMY(invoice.invoiceDate)}
                 </span>
@@ -248,7 +251,7 @@ export default function InvoiceDetailModal({
               <div>
                 <span className="text-slate-400 text-[11px] block">Condición / Plazo</span>
                 <span className="font-medium text-slate-800 dark:text-slate-200 text-xs">
-                  {invoice.terms && invoice.terms > 0 ? `${invoice.terms} días de crédito` : 'Contado'}
+                  {isRemision ? 'Venta de Remisión' : (invoice.terms && invoice.terms > 0 ? `${invoice.terms} días de crédito` : 'Contado')}
                 </span>
               </div>
 

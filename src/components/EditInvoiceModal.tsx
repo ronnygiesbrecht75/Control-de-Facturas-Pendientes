@@ -25,6 +25,8 @@ export default function EditInvoiceModal({
 }: EditInvoiceModalProps) {
   if (!isOpen || !invoice) return null;
 
+  const isRemision = invoice.documentType === 'remision';
+
   // Form states
   const [category, setCategory] = useState<InvoiceCategory>(invoice.category);
   const [clientName, setClientName] = useState(invoice.clientName);
@@ -81,29 +83,31 @@ export default function EditInvoiceModal({
     }
 
     if (!numero.trim()) {
-      setErrorMsg('Por favor, ingrese el número de factura.');
+      setErrorMsg(isRemision ? 'Por favor, ingrese el número de remisión.' : 'Por favor, ingrese el número de factura.');
       return;
     }
 
     if (amount <= 0) {
-      setErrorMsg('El monto facturado debe ser mayor a cero.');
+      setErrorMsg('El monto debe ser mayor a cero.');
       return;
     }
 
-    const cleanSucursal = sucursal.padStart(3, '0').substring(0, 3);
-    const cleanCaja = caja.padStart(3, '0').substring(0, 3);
-    const cleanNumero = numero.padStart(7, '0').substring(0, 7);
+    const cleanSucursal = isRemision ? '' : sucursal.padStart(3, '0').substring(0, 3);
+    const cleanCaja = isRemision ? '' : caja.padStart(3, '0').substring(0, 3);
+    const cleanNumero = isRemision ? numero.trim() : numero.padStart(7, '0').substring(0, 7);
 
     const updatedInvoice: Invoice = {
       ...invoice,
       category,
+      documentType: invoice.documentType,
+      remisionNumero: isRemision ? cleanNumero : invoice.remisionNumero,
       clientName: clientName.trim(),
       sucursal: cleanSucursal,
       caja: cleanCaja,
       numero: cleanNumero,
       amount,
       invoiceDate,
-      terms: terms || 0,
+      terms: isRemision ? 0 : (terms || 0),
       paid,
       ...(paid
         ? {
@@ -215,43 +219,59 @@ export default function EditInvoiceModal({
             </div>
           </div>
 
-          {/* Número de Factura (Sucursal - Caja - Número) */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-              Número de Factura (Sucursal - Caja - Número)
-            </label>
-            <div className="flex items-center gap-2">
+          {/* Número de Factura o Remisión */}
+          {isRemision ? (
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                Número de Remisión <span className="text-amber-600 dark:text-amber-400 font-bold">(Un solo número)</span>
+              </label>
               <input
                 type="text"
-                maxLength={3}
-                value={sucursal}
-                onChange={(e) => setSucursal(e.target.value.replace(/\D/g, ''))}
-                placeholder="001"
-                className="w-20 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono font-bold text-center text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500"
-              />
-              <span className="text-slate-400 font-bold">-</span>
-              <input
-                type="text"
-                maxLength={3}
-                value={caja}
-                onChange={(e) => setCaja(e.target.value.replace(/\D/g, ''))}
-                placeholder="009"
-                className="w-20 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono font-bold text-center text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500"
-              />
-              <span className="text-slate-400 font-bold">-</span>
-              <input
-                type="text"
-                maxLength={7}
                 value={numero}
-                onChange={(e) => setNumero(e.target.value.replace(/\D/g, ''))}
-                placeholder="0001234"
-                className="flex-1 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono font-bold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                onChange={(e) => setNumero(e.target.value)}
+                placeholder="Ej. 10543"
+                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono font-bold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500"
                 required
               />
             </div>
-          </div>
+          ) : (
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                Número de Factura (Sucursal - Caja - Número)
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  maxLength={3}
+                  value={sucursal}
+                  onChange={(e) => setSucursal(e.target.value.replace(/\D/g, ''))}
+                  placeholder="001"
+                  className="w-20 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono font-bold text-center text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+                <span className="text-slate-400 font-bold">-</span>
+                <input
+                  type="text"
+                  maxLength={3}
+                  value={caja}
+                  onChange={(e) => setCaja(e.target.value.replace(/\D/g, ''))}
+                  placeholder="009"
+                  className="w-20 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono font-bold text-center text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+                <span className="text-slate-400 font-bold">-</span>
+                <input
+                  type="text"
+                  maxLength={7}
+                  value={numero}
+                  onChange={(e) => setNumero(e.target.value.replace(/\D/g, ''))}
+                  placeholder="0001234"
+                  className="flex-1 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono font-bold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  required
+                />
+              </div>
+            </div>
+          )}
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className={`grid grid-cols-1 ${isRemision ? 'md:grid-cols-2' : 'md:grid-cols-3'} gap-4`}>
             {/* Monto */}
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
@@ -285,20 +305,22 @@ export default function EditInvoiceModal({
               />
             </div>
 
-            {/* Plazo */}
-            <div>
-              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                Plazo (Días)
-              </label>
-              <input
-                type="number"
-                min={0}
-                value={terms}
-                onChange={(e) => setTerms(Number(e.target.value))}
-                placeholder="Días de crédito"
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500"
-              />
-            </div>
+            {/* Plazo (Sólo para Facturas, no para Remisiones) */}
+            {!isRemision && (
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Plazo (Días)
+                </label>
+                <input
+                  type="number"
+                  min={0}
+                  value={terms}
+                  onChange={(e) => setTerms(Number(e.target.value))}
+                  placeholder="Días de crédito"
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+            )}
           </div>
 
           {/* Estado de Pago */}

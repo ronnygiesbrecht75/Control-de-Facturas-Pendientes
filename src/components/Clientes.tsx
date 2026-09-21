@@ -147,11 +147,6 @@ export default function Clientes({ clients, onAddClient, onDeleteClient }: Clien
               Guardar Cliente
             </button>
           </form>
-
-          <div className="p-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-150 dark:border-slate-700/60 text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed font-mono">
-            <p className="font-bold text-amber-600 dark:text-amber-400 mb-0.5">💡 Consejo de Uso:</p>
-            Al registrar clientes aquí, aparecerán instantáneamente como sugerencias inteligentes cuando esté cargando nuevas facturas en el campo de Nombre del Cliente.
-          </div>
         </div>
 
         {/* CLIENTS LIST TABLE (RIGHT PANEL - col-span-8) */}

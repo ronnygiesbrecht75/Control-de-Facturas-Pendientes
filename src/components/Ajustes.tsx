@@ -128,6 +128,7 @@ export default function Ajustes({
         role: 'admin',
         permissions: {
           'registrar-factura': true,
+          'registrar-remision': true,
           'registrar-pagos': true,
           'cobro-movil': true,
           'facturas-pendientes': true,
@@ -425,17 +426,6 @@ export default function Ajustes({
 
           </div>
 
-          {/* Quick Help Card */}
-          <div className="p-4 rounded-2xl bg-amber-50/60 dark:bg-slate-800/60 border border-amber-200/70 dark:border-slate-700 text-xs space-y-1 text-slate-700 dark:text-slate-300">
-            <p className="font-bold text-amber-900 dark:text-amber-300 flex items-center gap-1.5">
-              <ShieldCheck className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-              Navegación Rápida
-            </p>
-            <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
-              Haz clic en cualquiera de las opciones de la columna lateral para abrir y configurar sus opciones en la columna de al lado sin tener que desplazarte hacia abajo.
-            </p>
-          </div>
-
         </aside>
 
         {/* ========================================================================= */}
@@ -542,27 +532,6 @@ export default function Ajustes({
                       <Moon className="w-3.5 h-3.5 text-blue-400" />
                       Modo Oscuro
                     </button>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                  <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 text-xs">
-                    <p className="font-bold text-slate-800 dark:text-slate-200 mb-1 flex items-center gap-1.5">
-                      <Sun className="w-3.5 h-3.5 text-amber-500" />
-                      Ventajas Modo Claro
-                    </p>
-                    <p className="text-slate-500 text-[11px] leading-relaxed">
-                      Ideal para ambientes iluminados, oficinas y lectura de comprobantes impresos o listas extensas.
-                    </p>
-                  </div>
-                  <div className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800/80 text-xs">
-                    <p className="font-bold text-slate-800 dark:text-slate-200 mb-1 flex items-center gap-1.5">
-                      <Moon className="w-3.5 h-3.5 text-blue-400" />
-                      Ventajas Modo Oscuro
-                    </p>
-                    <p className="text-slate-500 text-[11px] leading-relaxed">
-                      Reduce la fatiga ocular por las noches y ahorra batería en pantallas OLED de teléfonos móviles.
-                    </p>
                   </div>
                 </div>
               </div>

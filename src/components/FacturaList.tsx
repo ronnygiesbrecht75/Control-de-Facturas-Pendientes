@@ -28,6 +28,7 @@ import {
   TrendingUp, 
   CreditCard,
   ArrowUpDown,
+  ChevronDown,
   FileText,
   Printer
 } from 'lucide-react';
@@ -35,6 +36,8 @@ import ConfirmModal from './ConfirmModal';
 import EditInvoiceModal from './EditInvoiceModal';
 import InvoiceDetailModal from './InvoiceDetailModal';
 import { generateInvoicesPDF } from '../utils/pdfExport';
+
+export type DocumentTypeFilter = 'all' | 'facturas' | 'remisiones';
 
 type SortOption = 
   | 'num-asc' 
@@ -74,6 +77,7 @@ export default function FacturaList({
 }: FacturaListProps) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'All' | PaymentStatus>('All');
+  const [docTypeFilter, setDocTypeFilter] = useState<DocumentTypeFilter>('all');
   const [sortBy, setSortBy] = useState<SortOption>('num-asc');
   const [pageSize, setPageSize] = useState<number>(25);
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -84,10 +88,19 @@ export default function FacturaList({
   // Reset page when search, filter, sort, or page size changes
   React.useEffect(() => {
     setCurrentPage(1);
-  }, [search, statusFilter, sortBy, pageSize]);
+  }, [search, statusFilter, docTypeFilter, sortBy, pageSize]);
 
-  // Filter invoices for this specific tab category
-  const categoryInvoices = invoices.filter((inv) => inv.category === category);
+  // Filter invoices for this specific tab category AND selected document type
+  const categoryInvoices = invoices.filter((inv) => {
+    if (inv.category !== category) return false;
+    if (docTypeFilter === 'facturas') {
+      return inv.documentType !== 'remision';
+    }
+    if (docTypeFilter === 'remisiones') {
+      return inv.documentType === 'remision';
+    }
+    return true; // 'all': Facturas y Remisiones
+  });
 
   // Compute stats for category invoices
   const totalInvoiced = categoryInvoices.reduce((acc, curr) => acc + curr.amount, 0);
@@ -100,10 +113,16 @@ export default function FacturaList({
 
   // Filter by search query & selected status
   const filteredInvoices = categoryInvoices.filter((inv) => {
-    const formattedNum = formatInvoiceNumber(inv.sucursal, inv.caja, inv.numero);
+    const isRemision = inv.documentType === 'remision';
+    const formattedNum = isRemision 
+      ? (inv.remisionNumero || inv.numero || '')
+      : formatInvoiceNumber(inv.sucursal, inv.caja, inv.numero);
+
     const matchesSearch = 
       inv.clientName.toLowerCase().includes(search.toLowerCase()) ||
-      formattedNum.includes(search);
+      formattedNum.toLowerCase().includes(search.toLowerCase()) ||
+      (inv.remisionNumero && inv.remisionNumero.toLowerCase().includes(search.toLowerCase())) ||
+      (inv.numero && inv.numero.toLowerCase().includes(search.toLowerCase()));
     
     if (!matchesSearch) return false;
     if (statusFilter === 'All') return true;
@@ -143,9 +162,16 @@ export default function FacturaList({
   );
 
   const handleExportPDF = () => {
+    const docTypeLabel = 
+      docTypeFilter === 'all' 
+        ? 'Facturas y Remisiones' 
+        : docTypeFilter === 'remisiones' 
+          ? 'Solo Remisiones' 
+          : 'Solo Facturas';
+
     generateInvoicesPDF(sortedInvoices, {
-      title: `Planilla de Facturas - ${category}`,
-      subtitle: `Listado correspondiente a ${category}`,
+      title: `Planilla de ${docTypeLabel} - ${category}`,
+      subtitle: `Listado correspondiente a ${category} (${docTypeLabel})`,
       categoryFilter: category,
       statusFilter: statusFilter,
       searchFilter: search,
@@ -232,7 +258,7 @@ export default function FacturaList({
             {/* Selector de Ordenación (Diseño robusto que no se oculta ni se corta) */}
             <div className="relative flex items-center gap-1.5 w-full sm:w-auto">
               <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                Ordenar por:
+                Ordenar:
               </span>
               <div className="relative flex-1 sm:flex-initial">
                 <select
@@ -252,27 +278,54 @@ export default function FacturaList({
                 </div>
               </div>
             </div>
+
+            {/* Cuadro con Flecha: Elegir Facturas y Remisiones / Solo Facturas / Solo Remisiones (No aplica para Cristian) */}
+            {category !== 'Cristian' && (
+              <div className="relative flex items-center gap-1.5 w-full sm:w-auto">
+                <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap">
+                  Documentos:
+                </span>
+                <div className="relative flex-1 sm:flex-initial">
+                  <select
+                    id={`doc-type-filter-${category}`}
+                    value={docTypeFilter}
+                    onChange={(e) => setDocTypeFilter(e.target.value as DocumentTypeFilter)}
+                    className="w-full sm:w-auto appearance-none pl-3 pr-8 py-1.5 bg-amber-50/50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 border border-amber-300 dark:border-amber-600/50 text-xs font-bold rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-xs cursor-pointer"
+                  >
+                    <option value="all">Facturas y Remisiones</option>
+                    <option value="facturas">Solo Facturas</option>
+                    <option value="remisiones">Solo Remisiones</option>
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2.5 text-amber-600 dark:text-amber-400">
+                    <ChevronDown className="w-4 h-4" />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Quick tab filter and PDF export */}
+          {/* Filtro de Estado compacto con flecha y PDF export */}
           <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-            <div className="flex flex-wrap gap-1">
-              {(['All', 'A Vencer', 'Vencido', 'Pagado'] as const).map((filter) => {
-                const active = statusFilter === filter;
-                return (
-                  <button
-                    key={filter}
-                    onClick={() => setStatusFilter(filter)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                      active 
-                        ? 'bg-slate-900 dark:bg-primary-gold text-white dark:text-slate-950 shadow-sm' 
-                        : 'bg-white dark:bg-slate-950 hover:bg-slate-100 dark:hover:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700'
-                    }`}
-                  >
-                    {filter === 'All' ? 'Todos los Estados' : filter}
-                  </button>
-                );
-              })}
+            <div className="flex items-center gap-1.5 w-full sm:w-auto">
+              <span className="text-xs font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                Estado:
+              </span>
+              <div className="relative flex-1 sm:flex-initial">
+                <select
+                  id={`status-filter-${category}`}
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value as any)}
+                  className="w-full sm:w-auto appearance-none pl-2.5 pr-8 py-1.5 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 text-xs font-bold rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-xs cursor-pointer"
+                >
+                  <option value="All">Todos los Estados</option>
+                  <option value="A Vencer">A Vencer</option>
+                  <option value="Vencido">Vencido</option>
+                  <option value="Pagado">Pagado</option>
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2 text-slate-500 dark:text-slate-400">
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </div>
+              </div>
             </div>
 
             {/* PDF Export Button */}
@@ -307,9 +360,9 @@ export default function FacturaList({
               <thead>
                 <tr className="bg-slate-950 text-white select-none whitespace-nowrap text-[11px]">
                   <th className="py-2 px-3 font-semibold uppercase tracking-wider">Cliente</th>
-                  <th className="py-2 px-3 font-semibold uppercase tracking-wider whitespace-nowrap min-w-[145px]">N° de Factura</th>
+                  <th className="py-2 px-3 font-semibold uppercase tracking-wider whitespace-nowrap min-w-[145px]">N° Factura / Remisión</th>
                   <th className="py-2 px-3 font-semibold uppercase tracking-wider text-right whitespace-nowrap">Monto Facturado</th>
-                  <th className="py-2 px-2.5 font-semibold uppercase tracking-wider text-center whitespace-nowrap">F. Factura</th>
+                  <th className="py-2 px-2.5 font-semibold uppercase tracking-wider text-center whitespace-nowrap">F. Emisión</th>
                   <th className="py-2 px-2 font-semibold uppercase tracking-wider text-center whitespace-nowrap">Plazo</th>
                   <th className="py-2 px-2.5 font-semibold uppercase tracking-wider text-center whitespace-nowrap">F. Vence</th>
                   <th className="py-2 px-3 font-semibold uppercase tracking-wider text-center min-w-[130px] whitespace-nowrap">Estado</th>
@@ -356,9 +409,20 @@ export default function FacturaList({
                         {inv.clientName}
                       </td>
 
-                      {/* Nro Factura (1 Sola Línea con espacio suficiente) */}
+                      {/* Nro Factura / Remisión (1 Sola Línea con espacio suficiente) */}
                       <td className="py-1.5 px-3 font-mono font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap tracking-wide text-xs">
-                        {formatInvoiceNumber(inv.sucursal, inv.caja, inv.numero)}
+                        {inv.documentType === 'remision' ? (
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700/60 font-sans tracking-wider">
+                              REM
+                            </span>
+                            <span className="font-mono font-bold text-slate-900 dark:text-slate-100">
+                              N° {inv.remisionNumero || inv.numero}
+                            </span>
+                          </div>
+                        ) : (
+                          formatInvoiceNumber(inv.sucursal, inv.caja, inv.numero)
+                        )}
                       </td>
 
                       {/* Monto Facturado */}
@@ -366,14 +430,20 @@ export default function FacturaList({
                         {formatPYG(inv.amount)}
                       </td>
 
-                      {/* Fecha de factura */}
+                      {/* Fecha de factura / remisión */}
                       <td className="py-1.5 px-2.5 text-center text-slate-500 font-mono text-[11px] whitespace-nowrap">
                         {formatDateDMY(inv.invoiceDate)}
                       </td>
 
                       {/* Plazo término */}
                       <td className="py-1.5 px-2 text-center text-slate-500 font-medium text-xs whitespace-nowrap">
-                        {inv.terms ? `${inv.terms}d` : '-'}
+                        {inv.documentType === 'remision' ? (
+                          <span className="text-[10px] text-slate-400 font-medium italic">Remisión</span>
+                        ) : inv.terms ? (
+                          `${inv.terms}d`
+                        ) : (
+                          '-'
+                        )}
                       </td>
 
                       {/* Fecha de Vto */}

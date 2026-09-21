@@ -1,6 +1,6 @@
-# Control de Pagos - v1.5.0
+# Control de Pagos - v1.6.0
 
-[![Versión](https://img.shields.io/badge/version-1.5.0-blue.svg)](https://github.com/ronnygiesbrecht75/Control-de-Facturas-Pendientes/releases)
+[![Versión](https://img.shields.io/badge/version-1.6.0-blue.svg)](https://github.com/ronnygiesbrecht75/Control-de-Facturas-Pendientes/releases)
 [![React](https://img.shields.io/badge/React-19-61DAFB.svg)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6.svg)](https://www.typescriptlang.org/)
 [![Tailwind CSS](https://img.shields.io/badge/TailwindCSS-4.1-38B2AC.svg)](https://tailwindcss.com/)
@@ -8,12 +8,17 @@
 [![Capacitor](https://img.shields.io/badge/Capacitor-7.0-119EFF.svg)](https://capacitorjs.com/)
 [![Firebase](https://img.shields.io/badge/Firebase-Firestore-FFCA28.svg)](https://firebase.google.com/)
 
-Sistema integral y multiplataforma (**Web**, **Windows Desktop** y **Android Móvil**) desarrollado para la gestión, seguimiento y liquidación de facturas, cobranzas, pagos y clientes con formato paraguayo oficial y moneda en **Guaraníes (PYG)**.
+Sistema integral y multiplataforma (**Web**, **Windows Desktop** y **Android Móvil**) desarrollado para la gestión, seguimiento y liquidación de facturas, ventas de remisión, cobranzas, pagos y clientes con formato paraguayo oficial y moneda en **Guaraníes (PYG)**.
 
 ---
 
 ## 🌟 Características Principales
 
+- 📦 **Ventas de Remisión (Nuevo en v1.6.0)**:
+  - Pestaña dedicada **"Registrar Remisión"** con un único número de remisión y sin plazo de vencimiento.
+  - Integración transparente en el listado de **Facturas General**.
+  - Selector de filtro desplegable interactivo: *"Facturas y Remisiones"*, *"Solo Facturas"* o *"Solo Remisiones"*.
+  - Distintivo visual ("REM") en tablas y visor de detalles para rápida identificación.
 - 📋 **Gestión de Facturas por Categorías**:
   - Facturas (Comercial Walter)
   - Otras Facturas

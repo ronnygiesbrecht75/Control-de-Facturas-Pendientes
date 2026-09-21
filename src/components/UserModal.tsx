@@ -46,6 +46,7 @@ export default function UserModal({
       setRole('user');
       setPermissions({
         'registrar-factura': false,
+        'registrar-remision': false,
         'registrar-pagos': false,
         'cobro-movil': true,
         'facturas-pendientes': true,
@@ -73,6 +74,7 @@ export default function UserModal({
   const handleDeselectAll = () => {
     setPermissions({
       'registrar-factura': false,
+      'registrar-remision': false,
       'registrar-pagos': false,
       'cobro-movil': false,
       'facturas-pendientes': false,

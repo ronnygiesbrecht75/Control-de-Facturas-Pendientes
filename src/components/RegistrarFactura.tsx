@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Invoice, InvoiceCategory, Client } from '../types';
 import { formatPYG, formatInvoiceNumber } from '../utils/mockData';
-import { PlusCircle, Info, FileText, Check } from 'lucide-react';
+import { PlusCircle, Info, FileText, Check, ChevronDown } from 'lucide-react';
 
 interface RegistrarFacturaProps {
   onAddInvoice: (invoice: Omit<Invoice, 'id'>) => void;
@@ -23,6 +23,7 @@ export default function RegistrarFactura({ onAddInvoice, systemDate, clients = [
   const amountInputRef = useRef<HTMLInputElement>(null);
   const dateInputRef = useRef<HTMLInputElement>(null);
   const termsInputRef = useRef<HTMLInputElement>(null);
+  const pagoSelectRef = useRef<HTMLSelectElement>(null);
   const paidAmountInputRef = useRef<HTMLInputElement>(null);
   const paymentDateInputRef = useRef<HTMLInputElement>(null);
   const submitBtnRef = useRef<HTMLButtonElement>(null);
@@ -78,12 +79,23 @@ export default function RegistrarFactura({ onAddInvoice, systemDate, clients = [
   const handleTermsKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      if (paid && paidAmountInputRef.current) {
-        paidAmountInputRef.current.focus();
-        paidAmountInputRef.current.select();
-      } else if (submitBtnRef.current) {
-        submitBtnRef.current.focus();
+      pagoSelectRef.current?.focus();
+    }
+  };
+
+  const handlePagoKeyDown = (e: React.KeyboardEvent<HTMLSelectElement>) => {
+    if (e.key === '1' || e.key.toLowerCase() === 's') {
+      e.preventDefault();
+      setPaid(true);
+      if (paidAmount === 0 && amount > 0) {
+        setPaidAmount(amount);
       }
+    } else if (e.key === '2' || e.key.toLowerCase() === 'n') {
+      e.preventDefault();
+      setPaid(false);
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      submitBtnRef.current?.focus();
     }
   };
 
@@ -179,33 +191,28 @@ export default function RegistrarFactura({ onAddInvoice, systemDate, clients = [
             </div>
           )}
 
-          {/* Form Selector for Category - chosen with mouse as specified */}
+          {/* Form Selector for Category - compact dropdown with arrow */}
           <div>
-            <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
-              Destino de Factura (Categoría - Selección con Mouse)
+            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1" htmlFor="category-select">
+              Destino de Factura (Categoría)
             </label>
-            <div className="grid grid-cols-3 gap-2">
-              {(['Facturas', 'Otras', 'Cristian'] as InvoiceCategory[]).map((cat) => {
-                const isActive = category === cat;
-                return (
-                  <button
-                    key={cat}
-                    type="button"
-                    onClick={() => {
-                      setCategory(cat);
-                      clientInputRef.current?.focus();
-                    }}
-                    className={`py-3 px-4 rounded-lg border text-sm font-semibold transition-all duration-150 flex items-center justify-center gap-2 cursor-pointer ${
-                      isActive 
-                        ? 'bg-slate-900 dark:bg-primary-gold text-white dark:text-slate-950 border-slate-900 dark:border-primary-gold shadow-sm' 
-                        : 'bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800'
-                    }`}
-                  >
-                    <FileText className="w-4 h-4" />
-                    <span>{cat === 'Facturas' ? 'Facturas (General)' : cat === 'Otras' ? 'Otras Facturas' : 'Facturas de Cristian'}</span>
-                  </button>
-                );
-              })}
+            <div className="relative max-w-md">
+              <select
+                id="category-select"
+                value={category}
+                onChange={(e) => {
+                  setCategory(e.target.value as InvoiceCategory);
+                  clientInputRef.current?.focus();
+                }}
+                className="w-full appearance-none pl-3.5 pr-10 py-2.5 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg border border-slate-300 dark:border-slate-700 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-amber-500 cursor-pointer shadow-xs"
+              >
+                <option value="Facturas">Facturas</option>
+                <option value="Otras">Otras Facturas</option>
+                <option value="Cristian">Facturas de Cristian</option>
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-amber-600 dark:text-amber-400">
+                <ChevronDown className="w-4 h-4" />
+              </div>
             </div>
           </div>
 
@@ -286,7 +293,7 @@ export default function RegistrarFactura({ onAddInvoice, systemDate, clients = [
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* 3. Monto Facturado */}
             <div>
               <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1" htmlFor="amount-input">
@@ -300,7 +307,7 @@ export default function RegistrarFactura({ onAddInvoice, systemDate, clients = [
                 value={amount || ''}
                 onChange={(e) => setAmount(Number(e.target.value))}
                 onKeyDown={(e) => handleKeyDownNext(e, dateInputRef)}
-                className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-primary-gold font-mono font-bold"
+                className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-primary-gold font-mono font-bold"
                 placeholder="Monto en Guaraníes"
                 required
               />
@@ -321,7 +328,7 @@ export default function RegistrarFactura({ onAddInvoice, systemDate, clients = [
                 value={invoiceDate}
                 onChange={(e) => setInvoiceDate(e.target.value)}
                 onKeyDown={(e) => handleKeyDownNext(e, termsInputRef, true)}
-                className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-primary-gold font-semibold text-sm"
+                className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-primary-gold font-semibold text-sm"
                 required
               />
             </div>
@@ -339,94 +346,90 @@ export default function RegistrarFactura({ onAddInvoice, systemDate, clients = [
                 value={terms || ''}
                 onChange={(e) => setTerms(Number(e.target.value))}
                 onKeyDown={handleTermsKeyDown}
-                className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-primary-gold font-bold"
+                className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-primary-gold font-bold"
                 placeholder="0"
               />
               <p className="text-[10px] text-slate-500 mt-1">
-                Para el cálculo de Vencimientos
+                Cálculo de vencimientos
+              </p>
+            </div>
+
+            {/* 6. Cuadro Pago con Flecha y códigos 1 (Sí) / 2 (No) */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1" htmlFor="pago-select">
+                Pago
+              </label>
+              <div className="relative">
+                <select
+                  id="pago-select"
+                  ref={pagoSelectRef}
+                  value={paid ? '1' : '2'}
+                  onChange={(e) => {
+                    const isPaid = e.target.value === '1';
+                    setPaid(isPaid);
+                    if (isPaid && paidAmount === 0 && amount > 0) {
+                      setPaidAmount(amount);
+                    }
+                  }}
+                  onKeyDown={handlePagoKeyDown}
+                  className={`w-full appearance-none pl-3 pr-8 py-2 rounded-lg border font-bold text-sm cursor-pointer shadow-xs focus:outline-none focus:ring-2 ${
+                    paid
+                      ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700 focus:ring-emerald-500'
+                      : 'bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 border-slate-300 dark:border-slate-700 focus:ring-primary-gold'
+                  }`}
+                >
+                  <option value="2">2 - No</option>
+                  <option value="1">1 - Sí</option>
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2.5 text-slate-500 dark:text-slate-400">
+                  <ChevronDown className="w-4 h-4" />
+                </div>
+              </div>
+              <p className="text-[10px] text-slate-500 mt-1">
+                1 = Sí &bull; 2 = No
               </p>
             </div>
           </div>
 
-          {/* ¿Pago? Marcar (SI) o (NO) */}
-          <div className="bg-slate-50 dark:bg-slate-900 rounded-xl p-4 border border-slate-200 dark:border-slate-700 space-y-4">
-            <div className="flex items-center justify-between">
+          {/* Opcional: Si está pagado, campos para monto liquidado o fecha de pago */}
+          {paid && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-3.5 bg-emerald-50/40 dark:bg-emerald-950/20 rounded-xl border border-emerald-200 dark:border-emerald-800/50 animate-fade-in">
               <div>
-                <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200">
-                  ¿La factura ya está cobrada/pagada?
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Marque si la factura ya dispone de un registro de pago concreto.
+                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1" htmlFor="paid-amount-input">
+                  Monto de Pago (Opcional)
+                </label>
+                <input
+                  id="paid-amount-input"
+                  ref={paidAmountInputRef}
+                  type="number"
+                  min={0}
+                  value={paidAmount || ''}
+                  onChange={(e) => setPaidAmount(Number(e.target.value))}
+                  onKeyDown={(e) => handleKeyDownNext(e, paymentDateInputRef)}
+                  className="w-full px-3.5 py-1.5 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 rounded-lg border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono font-bold"
+                  placeholder="Monto liquidado"
+                />
+                <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-mono mt-1 font-medium">
+                  Liquidado: {formatPYG(paidAmount || amount)} Gs.
                 </p>
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setPaid(false)}
-                  className={`py-1.5 px-4 rounded-lg font-bold text-xs transition-colors duration-150 cursor-pointer ${
-                    !paid 
-                      ? 'bg-rose-500 text-white shadow-sm' 
-                      : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-300'
-                  }`}
-                >
-                  NO
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPaid(true)}
-                  className={`py-1.5 px-4 rounded-lg font-bold text-xs transition-colors duration-150 cursor-pointer ${
-                    paid 
-                      ? 'bg-emerald-500 text-white shadow-sm' 
-                      : 'bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-300'
-                  }`}
-                >
-                  SÍ
-                </button>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1" htmlFor="payment-date-input">
+                  Fecha del Pago (Opcional)
+                </label>
+                <input
+                  id="payment-date-input"
+                  ref={paymentDateInputRef}
+                  type="date"
+                  value={paymentDate}
+                  onChange={(e) => setPaymentDate(e.target.value)}
+                  onKeyDown={(e) => handleKeyDownNext(e, submitBtnRef)}
+                  className="w-full px-3.5 py-1.5 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 rounded-lg border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm font-semibold"
+                />
               </div>
             </div>
-
-            {/* Conditionally reveal pago forms */}
-            {paid && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3 border-t border-slate-200 dark:border-slate-700 animate-fade-in">
-                {/* Monto de Pago */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1" htmlFor="paid-amount-input">
-                    Monto del Pago (Opcional)
-                  </label>
-                  <input
-                    id="paid-amount-input"
-                    ref={paidAmountInputRef}
-                    type="number"
-                    min={0}
-                    value={paidAmount || ''}
-                    onChange={(e) => setPaidAmount(Number(e.target.value))}
-                    onKeyDown={(e) => handleKeyDownNext(e, paymentDateInputRef)}
-                    className="w-full px-4 py-2 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 rounded-lg border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono font-bold"
-                    placeholder="Monto liquidado"
-                  />
-                  <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-mono mt-1 font-medium text-right">
-                    Pagado: {formatPYG(paidAmount)} Gs.
-                  </p>
-                </div>
-
-                {/* Fecha de Pago */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1" htmlFor="payment-date-input">
-                    Fecha del Pago (Opcional)
-                  </label>
-                  <input
-                    id="payment-date-input"
-                    ref={paymentDateInputRef}
-                    type="date"
-                    value={paymentDate}
-                    onChange={(e) => setPaymentDate(e.target.value)}
-                    onKeyDown={(e) => handleKeyDownNext(e, submitBtnRef)}
-                    className="w-full px-4 py-2 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 rounded-lg border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 text-sm font-semibold"
-                  />
-                </div>
-              </div>
-            )}
-          </div>
+          )}
 
           <div className="pt-2">
             <button

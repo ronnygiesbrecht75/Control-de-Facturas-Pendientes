@@ -10,6 +10,8 @@
         "sucursal": { "type": "string" },
         "caja": { "type": "string" },
         "numero": { "type": "string" },
+        "documentType": { "type": "string" },
+        "remisionNumero": { "type": "string" },
         "amount": { "type": "number" },
         "invoiceDate": { "type": "string" },
         "terms": { "type": "number" },
@@ -19,7 +21,7 @@
         "paymentMethod": { "type": "string" },
         "paymentDetails": { "type": "object" }
       },
-      "required": ["id", "category", "clientName", "sucursal", "caja", "numero", "amount", "invoiceDate", "paid"]
+      "required": ["id", "category", "clientName", "amount", "invoiceDate", "paid"]
     },
     "clients": {
       "title": "Clients",

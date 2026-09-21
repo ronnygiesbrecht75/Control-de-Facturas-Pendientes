@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export const CURRENT_APP_VERSION = '1.5.0';
+export const CURRENT_APP_VERSION = '1.6.0';
 
 export interface ReleaseAsset {
   name: string;
