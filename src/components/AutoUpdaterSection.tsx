@@ -114,13 +114,35 @@ export default function AutoUpdaterSection({ onNotify }: AutoUpdaterSectionProps
   // Iniciar descarga e instalación automática en la app
   const handleStartInAppUpdate = async () => {
     if (window.electronAPI) {
-      setElectronStatus('downloading');
+      setElectronStatus('checking');
       setElectronPercent(0);
       setElectronError(null);
+
+      try {
+        // En electron-updater es obligatorio consultar las actualizaciones primero
+        const checkRes = await window.electronAPI.checkForUpdates();
+        if (!checkRes.success && checkRes.error) {
+          console.warn('Aviso al comprobar actualización en Electron:', checkRes.error);
+        }
+      } catch (e) {
+        console.warn('Excepción al comprobar en Electron:', e);
+      }
+
+      setElectronStatus('downloading');
       const res = await window.electronAPI.startDownloadUpdate();
       if (!res.success) {
         setElectronStatus('error');
-        setElectronError(res.error || 'No se pudo iniciar la descarga en el instalador.');
+        let errorMsg = res.error || 'No se pudo iniciar la descarga en el instalador.';
+        if (errorMsg.includes('Please check update first')) {
+          errorMsg = 'Debes consultar primero las actualizaciones con el servidor. Haz clic en "Buscar Actualizaciones" o descarga el archivo .exe directamente.';
+        } else if (errorMsg.includes('latest.yml') || errorMsg.includes('404')) {
+          errorMsg = 'La versión publicada en GitHub aún no cuenta con el archivo latest.yml. Puedes descargar el instalador .exe con el botón verde de abajo.';
+        }
+        setElectronError(errorMsg);
+        onNotify?.({
+          type: 'error',
+          message: errorMsg
+        });
       }
     } else {
       // Simulación en entorno web
@@ -152,6 +174,13 @@ export default function AutoUpdaterSection({ onNotify }: AutoUpdaterSectionProps
     setIsChecking(true);
     setDownloadProgress(null);
     try {
+      // Si estamos en Electron, también sincronizamos la comprobación nativa
+      if (window.electronAPI) {
+        window.electronAPI.checkForUpdates().catch((err) => {
+          console.warn('Verificación en segundo plano de Electron:', err);
+        });
+      }
+
       let info: UpdateInfo;
       if (forceSimulate) {
         info = simulateNewVersionCheck('1.6.0');

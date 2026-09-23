@@ -61,8 +61,17 @@ function setupAutoUpdater(win) {
   autoUpdater.on('error', (err) => {
     console.error('Error in autoUpdater:', err);
     if (win && !win.isDestroyed()) {
+      let rawMsg = (err == null ? 'Error desconocido al actualizar' : (err.message || err)).toString();
+      let friendly = rawMsg;
+      if (rawMsg.includes('Please check update first')) {
+        friendly = 'Por favor verifica primero las actualizaciones con el servidor antes de iniciar la descarga.';
+      } else if (rawMsg.includes('latest.yml') || rawMsg.includes('404')) {
+        friendly = 'No se encontró el manifiesto de actualización (latest.yml) en GitHub Releases. Utiliza el botón de descarga manual del instalador (.exe).';
+      } else if (rawMsg.includes('dev-app-update.yml')) {
+        friendly = 'El actualizador automático en 1 clic opera en la versión instalada (.exe). Puedes descargar el instalador directamente.';
+      }
       win.webContents.send('update-error', {
-        message: err == null ? 'Error desconocido al actualizar' : (err.message || err).toString(),
+        message: friendly,
       });
     }
   });
@@ -79,17 +88,19 @@ ipcMain.handle('check-for-updates', async () => {
     return { success: true, updateInfo: result?.updateInfo };
   } catch (error) {
     console.error('Error checking for updates:', error);
-    return { success: false, error: error.message };
+    return { success: false, error: error?.message || 'Error al comprobar actualizaciones en GitHub' };
   }
 });
 
 ipcMain.handle('start-download-update', async () => {
   try {
+    // electron-updater requiere que checkForUpdates() se haya ejecutado previamente para inicializar el contexto de descarga
+    await autoUpdater.checkForUpdates();
     await autoUpdater.downloadUpdate();
     return { success: true };
   } catch (error) {
     console.error('Error downloading update:', error);
-    return { success: false, error: error.message };
+    return { success: false, error: error?.message || 'Error al descargar la actualización' };
   }
 });
 
