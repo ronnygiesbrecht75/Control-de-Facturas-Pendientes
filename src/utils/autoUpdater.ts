@@ -61,6 +61,10 @@ export function getUpdateConfig(): UpdateConfig {
 
 export type PlatformType = 'windows' | 'android' | 'other';
 
+export function isElectronEnv(): boolean {
+  return typeof window !== 'undefined' && Boolean(window.electronAPI?.isElectron);
+}
+
 export function detectCurrentPlatform(): PlatformType {
   if (typeof navigator === 'undefined') return 'windows';
   const ua = (navigator.userAgent || '').toLowerCase();

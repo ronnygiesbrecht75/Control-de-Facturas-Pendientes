@@ -52,7 +52,10 @@ import {
   subscribeAllLicenses, 
   toggleLicenseActiveStatus, 
   clearLicenseRegisteredDevices, 
-  deleteLicenseFromCloud 
+  deleteLicenseFromCloud,
+  getOrCreateDeviceId,
+  regenerateDeviceId,
+  removeDeviceFromLicense
 } from '../lib/syncService';
 import ConfirmModal from './ConfirmModal';
 import ResetFactoryModal from './ResetFactoryModal';
@@ -324,6 +327,29 @@ export default function Ajustes({
   const handleDeleteLicense = async (lic: AppLicense) => {
     if (window.confirm(`¿ELIMINAR DEFINITIVAMENTE la licencia de "${lic.assignedTo}"? Esta acción no se puede deshacer.`)) {
       await deleteLicenseFromCloud(lic.key);
+    }
+  };
+
+  const [thisDeviceId, setThisDeviceId] = useState<string>(() => getOrCreateDeviceId());
+
+  const handleRegenerateDeviceId = () => {
+    if (window.confirm('¿Desea generar un nuevo ID para este dispositivo? Utilícelo si dos equipos tienen el mismo identificador o fueron sincronizados/clonados desde la misma cuenta.')) {
+      const newId = regenerateDeviceId();
+      setThisDeviceId(newId);
+      setNotification({
+        type: 'success',
+        message: `Nuevo ID asignado a este equipo: ${newId}. Valide la clave nuevamente para registrarlo en la nube.`
+      });
+    }
+  };
+
+  const handleRemoveSingleDevice = async (lic: AppLicense, devId: string) => {
+    if (window.confirm(`¿Desea desvincular el dispositivo "${devId}" de la licencia "${lic.assignedTo}"?`)) {
+      await removeDeviceFromLicense(lic.key, devId);
+      setNotification({
+        type: 'success',
+        message: `Dispositivo "${devId}" liberado del cupo de "${lic.assignedTo}".`
+      });
     }
   };
 
@@ -1347,6 +1373,35 @@ export default function Ajustes({
                   {licenseSubTab === 'clientes' ? (
                     /* VISTA DE TODAS LAS LICENCIAS / GESTOR */
                     <div className="space-y-4">
+                      {/* Barra de diagnóstico del equipo actual */}
+                      <div className="p-3 bg-slate-50 dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                            <Laptop className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-bold text-slate-800 dark:text-slate-200">ID de este equipo:</span>
+                              <code className="px-2 py-0.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md font-mono text-[11px] font-bold text-amber-600 dark:text-amber-400">
+                                {thisDeviceId}
+                              </code>
+                            </div>
+                            <p className="text-[10px] text-slate-400 mt-0.5">
+                              Cada computadora o celular debe registrar su propio ID con la misma clave para sumar al cupo.
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleRegenerateDeviceId}
+                          className="px-2.5 py-1.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-xl text-[10px] font-semibold text-slate-600 dark:text-slate-300 flex items-center gap-1.5 cursor-pointer shrink-0 transition-colors"
+                          title="Si copiaste o sincronizaste el navegador entre 2 equipos, regenera el ID para que no compartan el mismo número"
+                        >
+                          <RefreshCw className="w-3 h-3 text-slate-400" />
+                          Regenerar ID de este equipo
+                        </button>
+                      </div>
+
                       {/* Barra de búsqueda y conteos */}
                       <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
                         <div className="relative w-full sm:w-72">
@@ -1480,6 +1535,62 @@ export default function Ajustes({
                                     </span>
                                   </div>
                                 </div>
+
+                                {/* Lista detallada de equipos autorizados / registrados */}
+                                {lic.activatedDevices && lic.activatedDevices.length > 0 ? (
+                                  <div className="py-2.5 px-3 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200/80 dark:border-slate-800 space-y-1.5 mb-3">
+                                    <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                                      <span className="flex items-center gap-1.5">
+                                        <Laptop className="w-3.5 h-3.5 text-amber-500" />
+                                        Equipos Registrados ({lic.activatedDevices.length} de {maxCount}):
+                                      </span>
+                                      <span className="text-[10px] text-slate-400 font-normal">
+                                        Este equipo: <strong className="font-mono text-amber-600 dark:text-amber-400 font-bold">{thisDeviceId}</strong>
+                                      </span>
+                                    </div>
+                                    <div className="flex flex-wrap gap-1.5 pt-0.5">
+                                      {lic.activatedDevices.map((devId, idx) => {
+                                        const isCurrent = devId === thisDeviceId;
+                                        const isMobile = devId.startsWith('MOB');
+                                        return (
+                                          <span
+                                            key={idx}
+                                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-mono border transition-all ${
+                                              isCurrent
+                                                ? 'bg-amber-100 dark:bg-amber-950/60 border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200 font-bold shadow-2xs'
+                                                : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                                            }`}
+                                          >
+                                            {isMobile ? (
+                                              <Smartphone className="w-3.5 h-3.5 text-sky-500 shrink-0" />
+                                            ) : (
+                                              <Laptop className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                            )}
+                                            <span>{devId}</span>
+                                            {isCurrent ? (
+                                              <span className="text-[9px] font-sans font-bold bg-amber-500 text-slate-950 px-1.5 py-0.2 rounded-md">
+                                                Esta PC
+                                              </span>
+                                            ) : (
+                                              <button
+                                                type="button"
+                                                onClick={() => handleRemoveSingleDevice(lic, devId)}
+                                                className="ml-1 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 p-0.5 rounded cursor-pointer"
+                                                title={`Desvincular equipo ${devId}`}
+                                              >
+                                                <X className="w-3 h-3" />
+                                              </button>
+                                            )}
+                                          </span>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div className="py-2 px-3 bg-amber-50/50 dark:bg-amber-950/20 border border-dashed border-amber-200 dark:border-amber-800/40 rounded-xl text-[11px] text-amber-800 dark:text-amber-300 mb-3">
+                                    No hay dispositivos registrados en la nube todavía. Al activar la clave en una PC o celular con internet, aparecerá aquí.
+                                  </div>
+                                )}
 
                                 {/* Acciones de la licencia */}
                                 <div className="pt-2 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between flex-wrap gap-2">

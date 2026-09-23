@@ -409,123 +409,124 @@ export default function FacturaList({
       {/* Main filter list controls */}
       <div className="bg-white dark:bg-slate-800 rounded-xl shadow-md border border-slate-200 dark:border-slate-700 overflow-hidden">
         
-        {/* Custom Header controls (Ultracompacto en una sola barra integrada) */}
-        <div className="p-2 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-2 text-xs">
+        {/* Custom Header controls (Nombrado claro de cada cuadro como en Facturas Pendientes) */}
+        <div className="p-2.5 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 space-y-2 text-xs">
           
-          {/* Buscador */}
-          <div className="relative flex-1 min-w-[190px] max-w-sm">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-            <input
-              id={`search-input-${category}`}
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar por cliente o factura..."
-              className="w-full pl-8 pr-7 py-1 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-[11px] rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500 text-slate-800 dark:text-slate-100"
-            />
-            {search && (
-              <button 
-                onClick={() => setSearch('')} 
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
-                aria-label="Borrar búsqueda"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            )}
-          </div>
-
-          {/* Controles de Filtros y Acciones */}
-          <div className="flex flex-wrap items-center gap-1.5">
-            {/* Rango de Fechas: Solo Desde y Hasta con soporte para tecla Enter */}
-            <div className="flex items-center gap-1.5 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-0.5 shadow-xs">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                Desde:
-              </span>
-              <DateInputWithEnter
-                ref={dateFromRef}
-                id={`date-from-${category}`}
-                value={startDate}
-                onChange={setStartDate}
-                onEnterNext={() => dateToRef.current?.focus()}
-              />
-              <span className="text-slate-300 dark:text-slate-600">|</span>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                Hasta:
-              </span>
-              <DateInputWithEnter
-                ref={dateToRef}
-                id={`date-to-${category}`}
-                value={endDate}
-                onChange={setEndDate}
-              />
-              {(startDate || endDate) && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setStartDate('');
-                    setEndDate('');
-                  }}
-                  title="Quitar fechas"
-                  className="p-0.5 text-slate-400 hover:text-rose-500 rounded cursor-pointer"
-                >
-                  <X className="w-3 h-3" />
-                </button>
+          {/* Fila 1: Filtros de Documentos, Estado, Ordenar por, Fechas & Botón PDF */}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            
+            <div className="flex flex-wrap items-center gap-2">
+              {/* 1. Selector de Documentos (No aplica para Cristian) */}
+              {category !== 'Cristian' && (
+                <div className="flex items-center gap-1">
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                    Documentos:
+                  </span>
+                  <div className="relative">
+                    <select
+                      id={`doc-type-filter-${category}`}
+                      value={docTypeFilter}
+                      onChange={(e) => setDocTypeFilter(e.target.value as DocumentTypeFilter)}
+                      className="appearance-none pl-2 pr-6 py-1 bg-amber-50/70 dark:bg-slate-950 text-slate-900 dark:text-slate-100 border border-amber-300 dark:border-amber-600/50 text-[11px] font-bold rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-xs cursor-pointer"
+                    >
+                      <option value="all">Facturas y Remisiones</option>
+                      <option value="facturas">Solo Facturas</option>
+                      <option value="remisiones">Solo Remisiones</option>
+                    </select>
+                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-1.5 text-amber-600 dark:text-amber-400">
+                      <ChevronDown className="w-3 h-3" />
+                    </div>
+                  </div>
+                </div>
               )}
-            </div>
 
-            {/* Selector de Ordenación */}
-            <div className="relative">
-              <select
-                id={`sort-select-${category}`}
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as SortOption)}
-                className="appearance-none pl-2 pr-7 py-1 bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 text-[11px] font-bold rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500 shadow-xs cursor-pointer"
-              >
-                {sortOptions.map((opt) => (
-                  <option key={opt.value} value={opt.value} className="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2 text-amber-500">
-                <ArrowUpDown className="w-3 h-3" />
-              </div>
-            </div>
-
-            {/* Selector de Documentos (No aplica para Cristian) */}
-            {category !== 'Cristian' && (
-              <div className="relative">
-                <select
-                  id={`doc-type-filter-${category}`}
-                  value={docTypeFilter}
-                  onChange={(e) => setDocTypeFilter(e.target.value as DocumentTypeFilter)}
-                  className="appearance-none pl-2 pr-6 py-1 bg-amber-50/50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 border border-amber-300 dark:border-amber-600/50 text-[11px] font-bold rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-xs cursor-pointer"
-                >
-                  <option value="all">Facturas y Remisiones</option>
-                  <option value="facturas">Solo Facturas</option>
-                  <option value="remisiones">Solo Remisiones</option>
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-1.5 text-amber-600 dark:text-amber-400">
-                  <ChevronDown className="w-3 h-3" />
+              {/* 2. Filtro de Estado */}
+              <div className="flex items-center gap-1">
+                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                  Estado:
+                </span>
+                <div className="relative">
+                  <select
+                    id={`status-filter-${category}`}
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value as any)}
+                    className="appearance-none pl-2 pr-6 py-1 bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 text-[11px] font-bold rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-xs cursor-pointer"
+                  >
+                    <option value="All">Todos los Estados</option>
+                    <option value="A Vencer">A Vencer</option>
+                    <option value="Vencido">Vencido</option>
+                    <option value="Pagado">Pagado</option>
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-1.5 text-slate-500 dark:text-slate-400">
+                    <ChevronDown className="w-3 h-3" />
+                  </div>
                 </div>
               </div>
-            )}
 
-            {/* Filtro de Estado */}
-            <div className="relative">
-              <select
-                id={`status-filter-${category}`}
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as any)}
-                className="appearance-none pl-2 pr-6 py-1 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 text-[11px] font-bold rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-xs cursor-pointer"
-              >
-                <option value="All">Todos los Estados</option>
-                <option value="A Vencer">A Vencer</option>
-                <option value="Vencido">Vencido</option>
-                <option value="Pagado">Pagado</option>
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-1.5 text-slate-500 dark:text-slate-400">
-                <ChevronDown className="w-3 h-3" />
+              {/* 3. Selector de Ordenación */}
+              <div className="flex items-center gap-1">
+                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                  Ordenar por:
+                </span>
+                <div className="relative">
+                  <select
+                    id={`sort-select-${category}`}
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value as SortOption)}
+                    className="appearance-none pl-2 pr-7 py-1 bg-slate-100 dark:bg-slate-950 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 text-[11px] font-bold rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-xs cursor-pointer"
+                  >
+                    {sortOptions.map((opt) => (
+                      <option key={opt.value} value={opt.value} className="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2 text-amber-500">
+                    <ArrowUpDown className="w-3 h-3" />
+                  </div>
+                </div>
+              </div>
+
+              {/* 4. Buscador por Rango de Fechas (movido a la primera fila) */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap flex items-center gap-1">
+                  <Calendar className="w-3 h-3 text-amber-500" /> Fechas:
+                </span>
+                <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg px-2 py-0.5 shadow-xs">
+                  <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                    Desde:
+                  </span>
+                  <DateInputWithEnter
+                    ref={dateFromRef}
+                    id={`date-from-${category}`}
+                    value={startDate}
+                    onChange={setStartDate}
+                    onEnterNext={() => dateToRef.current?.focus()}
+                  />
+                  <span className="text-slate-300 dark:text-slate-600">|</span>
+                  <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                    Hasta:
+                  </span>
+                  <DateInputWithEnter
+                    ref={dateToRef}
+                    id={`date-to-${category}`}
+                    value={endDate}
+                    onChange={setEndDate}
+                  />
+                  {(startDate || endDate) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setStartDate('');
+                        setEndDate('');
+                      }}
+                      title="Quitar fechas"
+                      className="p-0.5 text-slate-400 hover:text-rose-500 rounded cursor-pointer ml-0.5"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -540,6 +541,42 @@ export default function FacturaList({
               <FileText className="w-3 h-3" />
               <span>Hacer PDF ({sortedInvoices.length})</span>
             </button>
+          </div>
+
+          {/* Fila 2: Buscador por texto & Contador de facturas */}
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-1.5 border-t border-slate-200/80 dark:border-slate-700/60">
+            
+            {/* Buscador de texto nombrado */}
+            <div className="flex items-center gap-1.5 flex-1 min-w-[200px] max-w-md">
+              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap flex items-center gap-1">
+                <Search className="w-3 h-3 text-slate-400" /> Buscar:
+              </span>
+              <div className="relative flex-1">
+                <input
+                  id={`search-input-${category}`}
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Cliente o número de factura..."
+                  className="w-full pl-3 pr-7 py-1 bg-slate-100 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 text-[11px] rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500 text-slate-800 dark:text-slate-100 font-medium shadow-xs"
+                />
+                {search && (
+                  <button 
+                    onClick={() => setSearch('')} 
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    aria-label="Borrar búsqueda"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Contador de facturas */}
+            <span className="bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 text-[11px] px-2 py-0.5 rounded-md font-bold border border-amber-200 dark:border-amber-800 whitespace-nowrap">
+              {sortedInvoices.length} {sortedInvoices.length === 1 ? 'factura' : 'facturas'}
+            </span>
+
           </div>
 
         </div>

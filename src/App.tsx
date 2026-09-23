@@ -248,7 +248,16 @@ export default function App() {
         setLicenseData(res.license);
         localStorage.setItem('pagos_app_license_verified', 'true');
         localStorage.setItem('pagos_app_license_data', JSON.stringify(res.license));
+      } else if (res.isNetworkError) {
+        // En caso de estar sin internet o con falla de red, si ya estaba verificada localmente, conservar acceso
+        const wasVerified = localStorage.getItem('pagos_app_license_verified') === 'true';
+        if (wasVerified) {
+          setIsLicenseActive(true);
+        } else {
+          setIsLicenseActive(false);
+        }
       } else {
+        // La licencia fue explícitamente rechazada (inexistente, suspendida, expirada o cupo superado)
         setIsLicenseActive(false);
         localStorage.setItem('pagos_app_license_verified', 'false');
       }

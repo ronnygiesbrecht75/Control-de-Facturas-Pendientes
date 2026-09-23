@@ -11,7 +11,8 @@ import {
   setDoc, 
   deleteDoc, 
   onSnapshot,
-  getDocs
+  getDocs,
+  arrayUnion
 } from './firebase';
 import { Invoice, Client, UserSettings, UserAccount, AppLicense, LicenseValidationResult } from '../types';
 
@@ -179,13 +180,20 @@ export function getOrCreateDeviceId(): string {
   const STORAGE_KEY = 'pagos_app_device_id';
   let deviceId = localStorage.getItem(STORAGE_KEY);
   if (!deviceId) {
-    const randomHex = Math.random().toString(36).substring(2, 10).toUpperCase();
-    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-    const platformTag = isMobile ? 'MOB' : 'PC';
-    deviceId = `${platformTag}-${randomHex}-${Date.now().toString().slice(-4)}`;
-    localStorage.setItem(STORAGE_KEY, deviceId);
+    deviceId = regenerateDeviceId();
   }
   return deviceId;
+}
+
+// Forces generation of a brand new unique device ID for this installation
+export function regenerateDeviceId(): string {
+  const STORAGE_KEY = 'pagos_app_device_id';
+  const randomHex = Math.random().toString(36).substring(2, 10).toUpperCase();
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const platformTag = isMobile ? 'MOB' : 'PC';
+  const newDeviceId = `${platformTag}-${randomHex}-${Date.now().toString().slice(-4)}`;
+  localStorage.setItem(STORAGE_KEY, newDeviceId);
+  return newDeviceId;
 }
 
 // Validates a license key against Firebase Firestore
@@ -239,8 +247,8 @@ export async function validateLicenseInFirebase(licenseKey: string): Promise<Lic
         };
       }
       activatedDevices.push(currentDeviceId);
-      // Update in Firebase
-      await setDoc(docRef, { activatedDevices }, { merge: true });
+      // Update in Firebase atomically using arrayUnion
+      await setDoc(docRef, { activatedDevices: arrayUnion(currentDeviceId) }, { merge: true });
       licenseData.activatedDevices = activatedDevices;
     }
 
@@ -253,6 +261,7 @@ export async function validateLicenseInFirebase(licenseKey: string): Promise<Lic
     console.error('Error validating license in Firebase:', err);
     return {
       valid: false,
+      isNetworkError: true,
       message: `Error al conectar con el servidor de licencias: ${err?.message || 'Verifique su conexión a internet.'}`
     };
   }
@@ -339,6 +348,24 @@ export async function deleteLicenseFromCloud(licenseKey: string) {
     return true;
   } catch (e) {
     console.error('Failed to delete license from cloud:', e);
+    return false;
+  }
+}
+
+// Removes a single device ID from a license in Firestore
+export async function removeDeviceFromLicense(licenseKey: string, deviceIdToRemove: string) {
+  try {
+    const normalizedKey = normalizeLicenseKey(licenseKey);
+    const docRef = doc(db, 'licenses', normalizedKey);
+    const snap = await getDoc(docRef);
+    if (!snap.exists()) return false;
+    const data = snap.data() as AppLicense;
+    const current = Array.isArray(data.activatedDevices) ? data.activatedDevices : [];
+    const updated = current.filter(id => id !== deviceIdToRemove);
+    await setDoc(docRef, { activatedDevices: updated }, { merge: true });
+    return true;
+  } catch (e) {
+    console.error('Failed to remove device from license:', e);
     return false;
   }
 }

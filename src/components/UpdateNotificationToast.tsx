@@ -56,7 +56,7 @@ export default function UpdateNotificationToast({
 
         <p className="text-[11px] text-slate-300 leading-tight">
           {platform === 'windows' 
-            ? `Hay un instalador para PC (Windows .exe) listo para descargar con nuevas mejoras y correcciones.`
+            ? `Hay una nueva versión v${updateInfo.latestVersion} lista para actualizarse directamente en la app con 1 clic.`
             : `Hay una actualización para Android (.apk) lista para descargar con mejoras de velocidad.`}
         </p>
 
@@ -70,7 +70,7 @@ export default function UpdateNotificationToast({
             className="flex-1 py-2 px-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs shadow-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
           >
             <Download className="w-3.5 h-3.5" />
-            <span>{platform === 'windows' ? 'Descargar para PC (.exe)' : 'Descargar para Android'}</span>
+            <span>{platform === 'windows' ? 'Actualizar en la App' : 'Descargar para Android'}</span>
           </button>
 
           <button

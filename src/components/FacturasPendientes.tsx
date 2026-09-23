@@ -69,7 +69,6 @@ export default function FacturasPendientes({ invoices, systemDate, clients = [] 
   const [endDate, setEndDate] = useState<string>('');
   const dateFromRef = useRef<DateInputHandle>(null);
   const dateToRef = useRef<DateInputHandle>(null);
-  const [dateFieldFilter, setDateFieldFilter] = useState<'emision' | 'vencimiento'>('emision');
   const [invoiceToView, setInvoiceToView] = useState<Invoice | null>(null);
 
   // Filter for UNPAID invoices (all pending)
@@ -124,10 +123,9 @@ export default function FacturasPendientes({ invoices, systemDate, clients = [] 
       return false;
     }
 
-    // Filtro por fecha (Emisión o Vencimiento)
-    const targetDate = dateFieldFilter === 'vencimiento' ? item.dueDateStr : item.invoiceDate;
-    if (startDate && targetDate < startDate) return false;
-    if (endDate && targetDate > endDate) return false;
+    // Filtro por fecha de emisión
+    if (startDate && item.invoiceDate < startDate) return false;
+    if (endDate && item.invoiceDate > endDate) return false;
 
     return true;
   });
@@ -360,75 +358,77 @@ export default function FacturasPendientes({ invoices, systemDate, clients = [] 
 
         </div>
 
-        {/* Buscador, Filtro de Fechas (Solo Desde y Hasta) & Contador en una fila compacta */}
+        {/* Buscador, Filtro de Fechas & Contador en una fila compacta */}
         <div className="flex flex-wrap items-center justify-between gap-2 pt-1.5 border-t border-slate-100 dark:border-slate-700/60 text-xs">
           
-          {/* Buscador */}
-          <div className="relative flex-1 min-w-[180px] max-w-xs">
-            <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar por cliente o número..."
-              className="w-full pl-8 pr-7 py-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-[11px] rounded-lg text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500 font-medium"
-            />
-            {search && (
-              <button
-                type="button"
-                onClick={() => setSearch('')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            )}
-          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Buscador nombrado */}
+            <div className="flex items-center gap-1.5 min-w-[200px] max-w-xs">
+              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap flex items-center gap-1">
+                <Search className="w-3 h-3 text-slate-400" /> Buscar:
+              </span>
+              <div className="relative flex-1">
+                <input
+                  id="search-input-pendientes"
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Cliente o número de factura..."
+                  className="w-full pl-3 pr-7 py-1 bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-[11px] rounded-lg text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500 font-medium shadow-xs"
+                />
+                {search && (
+                  <button
+                    type="button"
+                    onClick={() => setSearch('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+            </div>
 
-          {/* Rango de Fechas: Solo Desde y Hasta con soporte para tecla Enter */}
-          <div className="flex items-center gap-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-0.5 shadow-xs">
-            <select
-              id="date-field-pendientes"
-              value={dateFieldFilter}
-              onChange={(e) => setDateFieldFilter(e.target.value as 'emision' | 'vencimiento')}
-              className="bg-transparent text-[10px] font-bold text-slate-600 dark:text-slate-300 focus:outline-none cursor-pointer pr-1"
-            >
-              <option value="emision">Emisión</option>
-              <option value="vencimiento">Vencimiento</option>
-            </select>
-            <span className="text-slate-300 dark:text-slate-600">|</span>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-              Desde:
-            </span>
-            <DateInputWithEnter
-              ref={dateFromRef}
-              id="date-from-pendientes"
-              value={startDate}
-              onChange={setStartDate}
-              onEnterNext={() => dateToRef.current?.focus()}
-            />
-            <span className="text-slate-300 dark:text-slate-600">|</span>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-              Hasta:
-            </span>
-            <DateInputWithEnter
-              ref={dateToRef}
-              id="date-to-pendientes"
-              value={endDate}
-              onChange={setEndDate}
-            />
-            {(startDate || endDate) && (
-              <button
-                type="button"
-                onClick={() => {
-                  setStartDate('');
-                  setEndDate('');
-                }}
-                title="Quitar fechas"
-                className="p-0.5 text-slate-400 hover:text-rose-500 rounded cursor-pointer ml-0.5"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            )}
+            {/* Rango de Fechas: ubicado justo al lado del buscador */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap flex items-center gap-1">
+                <Calendar className="w-3 h-3 text-amber-500" /> Fechas:
+              </span>
+              <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg px-2 py-0.5 shadow-xs">
+                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  Desde:
+                </span>
+                <DateInputWithEnter
+                  ref={dateFromRef}
+                  id="date-from-pendientes"
+                  value={startDate}
+                  onChange={setStartDate}
+                  onEnterNext={() => dateToRef.current?.focus()}
+                />
+                <span className="text-slate-300 dark:text-slate-600">|</span>
+                <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                  Hasta:
+                </span>
+                <DateInputWithEnter
+                  ref={dateToRef}
+                  id="date-to-pendientes"
+                  value={endDate}
+                  onChange={setEndDate}
+                />
+                {(startDate || endDate) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStartDate('');
+                      setEndDate('');
+                    }}
+                    title="Quitar fechas"
+                    className="p-0.5 text-slate-400 hover:text-rose-500 rounded cursor-pointer ml-0.5"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Contador */}

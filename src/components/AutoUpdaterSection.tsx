@@ -12,6 +12,7 @@ import {
   simulateNewVersionCheck,
   getRecommendedAsset,
   detectCurrentPlatform,
+  isElectronEnv,
   formatFileSize,
   UpdateInfo, 
   UpdateConfig,
@@ -31,7 +32,8 @@ import {
   Smartphone,
   ChevronRight,
   Info,
-  Clock
+  Clock,
+  RotateCcw
 } from 'lucide-react';
 
 interface AutoUpdaterSectionProps {
@@ -46,6 +48,105 @@ export default function AutoUpdaterSection({ onNotify }: AutoUpdaterSectionProps
   const [isDownloading, setIsDownloading] = useState<boolean>(false);
   const [showAdvanced, setShowAdvanced] = useState<boolean>(false);
   const [customRepo, setCustomRepo] = useState<string>(config.githubRepo);
+
+  // Estado del actualizador de escritorio Electron (In-App)
+  const isDesktop = isElectronEnv();
+  const [electronStatus, setElectronStatus] = useState<'idle' | 'checking' | 'available' | 'downloading' | 'downloaded' | 'error'>('idle');
+  const [electronPercent, setElectronPercent] = useState<number>(0);
+  const [electronSpeed, setElectronSpeed] = useState<string>('');
+  const [electronError, setElectronError] = useState<string | null>(null);
+
+  // Escuchar eventos de actualización directa desde Electron IPC
+  useEffect(() => {
+    if (!window.electronAPI) return;
+
+    const unsubChecking = window.electronAPI.onCheckingForUpdate(() => {
+      setElectronStatus('checking');
+    });
+
+    const unsubAvailable = window.electronAPI.onUpdateAvailable((info) => {
+      setElectronStatus('available');
+      onNotify?.({
+        type: 'info',
+        message: `¡Actualización v${info.version} disponible en el instalador de escritorio!`
+      });
+    });
+
+    const unsubNotAvailable = window.electronAPI.onUpdateNotAvailable(() => {
+      setElectronStatus('idle');
+    });
+
+    const unsubProgress = window.electronAPI.onDownloadProgress((prog) => {
+      setElectronStatus('downloading');
+      setElectronPercent(Math.round(prog.percent));
+      const speedMB = (prog.bytesPerSecond / (1024 * 1024)).toFixed(1);
+      setElectronSpeed(`${speedMB} MB/s`);
+    });
+
+    const unsubDownloaded = window.electronAPI.onUpdateDownloaded((info) => {
+      setElectronStatus('downloaded');
+      setElectronPercent(100);
+      onNotify?.({
+        type: 'success',
+        message: `¡Actualización v${info.version} descargada! Haz clic en "Reiniciar y Actualizar" para aplicarla de inmediato.`
+      });
+    });
+
+    const unsubError = window.electronAPI.onUpdateError((err) => {
+      setElectronStatus('error');
+      setElectronError(err.message);
+      onNotify?.({
+        type: 'error',
+        message: `Error al actualizar automáticamente: ${err.message}`
+      });
+    });
+
+    return () => {
+      unsubChecking();
+      unsubAvailable();
+      unsubNotAvailable();
+      unsubProgress();
+      unsubDownloaded();
+      unsubError();
+    };
+  }, [onNotify]);
+
+  // Iniciar descarga e instalación automática en la app
+  const handleStartInAppUpdate = async () => {
+    if (window.electronAPI) {
+      setElectronStatus('downloading');
+      setElectronPercent(0);
+      setElectronError(null);
+      const res = await window.electronAPI.startDownloadUpdate();
+      if (!res.success) {
+        setElectronStatus('error');
+        setElectronError(res.error || 'No se pudo iniciar la descarga en el instalador.');
+      }
+    } else {
+      // Simulación en entorno web
+      setElectronStatus('downloading');
+      setElectronPercent(10);
+      const timer = setInterval(() => {
+        setElectronPercent((prev) => {
+          if (prev >= 100) {
+            clearInterval(timer);
+            setElectronStatus('downloaded');
+            return 100;
+          }
+          return prev + 20;
+        });
+      }, 350);
+    }
+  };
+
+  // Reiniciar la app para aplicar la actualización
+  const handleQuitAndInstall = () => {
+    if (window.electronAPI) {
+      window.electronAPI.quitAndInstall();
+    } else {
+      window.location.reload();
+    }
+  };
 
   const handleCheckUpdates = async (forceSimulate = false) => {
     setIsChecking(true);
@@ -301,6 +402,87 @@ export default function AutoUpdaterSection({ onNotify }: AutoUpdaterSectionProps
                     </div>
                   </div>
                 )}
+
+                {/* In-App Direct Auto-Update Banner for Desktop */}
+                <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-amber-500/10 border-2 border-emerald-500/40 dark:border-emerald-500/30 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 rounded-xl bg-emerald-500 text-slate-950 font-black shadow-md shrink-0">
+                        {electronStatus === 'downloaded' ? (
+                          <CheckCircle2 className="w-5 h-5 text-slate-950" />
+                        ) : electronStatus === 'downloading' ? (
+                          <RefreshCw className="w-5 h-5 text-slate-950 animate-spin" />
+                        ) : (
+                          <Sparkles className="w-5 h-5 text-slate-950" />
+                        )}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h5 className="text-xs font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
+                            {electronStatus === 'downloaded' 
+                              ? '¡Listo para actualizar!' 
+                              : electronStatus === 'downloading' 
+                                ? 'Descargando actualización en la app...' 
+                                : 'Actualización en 1 Clic (Sin salir de la app)'}
+                          </h5>
+                          <span className="text-[10px] bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 font-bold px-2 py-0.5 rounded-full border border-emerald-500/30">
+                            Escritorio PC
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
+                          {electronStatus === 'downloaded'
+                            ? `La versión v${updateResult.latestVersion} ya está descargada. Reinicia para aplicar los cambios de inmediato.`
+                            : electronStatus === 'downloading'
+                              ? `Descargando paquete en segundo plano: ${electronPercent}% completado ${electronSpeed ? `(${electronSpeed})` : ''}`
+                              : 'Actualiza directamente dentro del programa sin tener que descargar archivos manuales en el navegador.'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Action Button */}
+                    <div className="shrink-0">
+                      {electronStatus === 'downloaded' ? (
+                        <button
+                          type="button"
+                          onClick={handleQuitAndInstall}
+                          className="w-full sm:w-auto py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95 animate-pulse"
+                        >
+                          <RotateCcw className="w-4 h-4" />
+                          <span>Reiniciar y Actualizar Ahora</span>
+                        </button>
+                      ) : electronStatus === 'downloading' ? (
+                        <div className="w-full sm:w-48 space-y-1">
+                          <div className="flex justify-between text-[11px] font-mono font-bold text-emerald-700 dark:text-emerald-300">
+                            <span>Descargando...</span>
+                            <span>{electronPercent}%</span>
+                          </div>
+                          <div className="w-full bg-slate-200 dark:bg-slate-700 h-2.5 rounded-full overflow-hidden">
+                            <div 
+                              className="bg-emerald-500 h-full transition-all duration-300 ease-out rounded-full"
+                              style={{ width: `${electronPercent}%` }}
+                            />
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={handleStartInAppUpdate}
+                          className="w-full sm:w-auto py-2.5 px-4 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-slate-950 font-black rounded-xl text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+                        >
+                          <Download className="w-4 h-4" />
+                          <span>Actualizar en la App (1-Clic)</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {electronError && (
+                    <div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 shrink-0" />
+                      <span>{electronError}</span>
+                    </div>
+                  )}
+                </div>
 
                 {/* Detected Platform & Packages Selection */}
                 {(() => {

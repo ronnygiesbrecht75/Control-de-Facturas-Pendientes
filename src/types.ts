@@ -120,5 +120,6 @@ export interface LicenseValidationResult {
   valid: boolean;
   message: string;
   license?: AppLicense;
+  isNetworkError?: boolean;
 }
 

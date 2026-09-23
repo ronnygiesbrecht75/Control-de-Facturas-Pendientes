@@ -1,5 +1,6 @@
 import express from "express";
 import path from "path";
+import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
 
@@ -7,7 +8,11 @@ dotenv.config();
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  
+  // Prioritize CLI argument --port, then port 3000
+  const portArgIndex = process.argv.indexOf("--port");
+  const cliPort = portArgIndex !== -1 ? Number(process.argv[portArgIndex + 1]) : NaN;
+  const PORT = !isNaN(cliPort) && cliPort > 0 ? cliPort : 3000;
 
   app.use(express.json({ limit: "25mb" }));
 
@@ -72,6 +77,23 @@ async function startServer() {
       appType: "spa",
     });
     app.use(vite.middlewares);
+
+    // SPA routing fallback in dev mode
+    app.use("*", async (req, res, next) => {
+      if (req.originalUrl.startsWith("/api")) {
+        return next();
+      }
+      try {
+        const url = req.originalUrl;
+        const indexPath = path.resolve(process.cwd(), "index.html");
+        let template = await fs.promises.readFile(indexPath, "utf-8");
+        template = await vite.transformIndexHtml(url, template);
+        res.status(200).set({ "Content-Type": "text/html" }).end(template);
+      } catch (e) {
+        vite.ssrFixStacktrace(e as Error);
+        next(e);
+      }
+    });
   } else {
     const distPath = path.join(process.cwd(), "dist");
     app.use(express.static(distPath));
@@ -80,10 +102,20 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+  const server = app.listen(PORT, "0.0.0.0", () => {
+    console.log(`Server running on http://0.0.0.0:${PORT}`);
+  });
+
+  process.on("SIGTERM", () => {
+    server.close(() => {
+      process.exit(0);
+    });
+  });
+  process.on("SIGINT", () => {
+    server.close(() => {
+      process.exit(0);
+    });
   });
 }
 
 startServer();
-

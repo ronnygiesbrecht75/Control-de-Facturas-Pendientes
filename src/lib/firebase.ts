@@ -14,6 +14,7 @@ import {
   deleteDoc, 
   onSnapshot, 
   getDocs,
+  arrayUnion,
   enableIndexedDbPersistence 
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
@@ -36,4 +37,4 @@ try {
   // Ignore error
 }
 
-export { collection, doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot, getDocs };
+export { collection, doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot, getDocs, arrayUnion };
