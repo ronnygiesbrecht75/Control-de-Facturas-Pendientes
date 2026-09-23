@@ -95,9 +95,15 @@ export default function AutoUpdaterSection({ onNotify }: AutoUpdaterSectionProps
     const unsubError = window.electronAPI.onUpdateError((err) => {
       setElectronStatus('error');
       setElectronError(err.message);
-      onNotify?.({
-        type: 'error',
-        message: `Error al actualizar automáticamente: ${err.message}`
+      // Solo mostramos notificación global si el usuario estaba activamente intentando descargar
+      setElectronStatus((currentStatus) => {
+        if (currentStatus === 'downloading' || currentStatus === 'checking') {
+          onNotify?.({
+            type: 'error',
+            message: `Actualización automática: ${err.message}`
+          });
+        }
+        return 'error';
       });
     });
 

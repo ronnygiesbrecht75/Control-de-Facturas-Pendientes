@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export const CURRENT_APP_VERSION = '1.7.2';
+export const CURRENT_APP_VERSION = '1.7.3';
 
 export interface ReleaseAsset {
   name: string;
@@ -206,9 +206,9 @@ export async function checkForAppUpdates(customRepo?: string): Promise<UpdateInf
     releaseName: `Control de Pagos v${CURRENT_APP_VERSION} (Al Día)`,
     releaseDate: nowStr,
     releaseNotes: [
-      'Versión v1.7.2 instalada y operativa.',
-      'Optimización de la interfaz de Ajustes: retirada la tarjeta redundante de navegación superior para un diseño más limpio.',
-      'Actualización directa In-App en 1 clic para el instalador de escritorio de Windows (Electron) con reinicio automático.',
+      'Versión v1.7.3 instalada y operativa.',
+      'Sincronización robusta y automática previa al descargar actualizaciones en 1-clic (Electron autoUpdater).',
+      'Optimización de la interfaz de Ajustes: diseño limpio sin tarjetas redundantes de navegación.',
       'Sincronización atómica de dispositivos por licencia con visualización de identificadores y liberación granular.',
       'Validación de licencias robusta con persistencia activa garantizada en modo sin conexión (offline).'
     ],
