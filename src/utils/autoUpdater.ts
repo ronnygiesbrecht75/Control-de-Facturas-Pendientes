@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export const CURRENT_APP_VERSION = '1.7.0';
+export const CURRENT_APP_VERSION = '1.7.1';
 
 export interface ReleaseAsset {
   name: string;
@@ -206,13 +206,14 @@ export async function checkForAppUpdates(customRepo?: string): Promise<UpdateInf
     releaseName: `Control de Pagos v${CURRENT_APP_VERSION} (Al Día)`,
     releaseDate: nowStr,
     releaseNotes: [
-      'Versión v1.7.0 instalada y operativa.',
+      'Versión v1.7.1 instalada y operativa.',
+      'Actualización directa In-App en 1 clic para el instalador de escritorio de Windows (Electron) con reinicio automático.',
+      'Sincronización atómica de dispositivos por licencia con visualización de identificadores y liberación granular.',
+      'Validación de licencias robusta con persistencia activa garantizada en modo sin conexión (offline).',
       'Virtualización con react-window para listados de alto rendimiento con grandes volúmenes de facturas.',
       'Campos de búsqueda rápida por rango de fechas (Desde/Hasta) con navegación fluida mediante tecla Enter.',
       'Soporte completo para Ventas de Remisión sin vencimiento y filtros dedicados.',
-      'Soporte oficial para facturas y montos en Guaraníes (PYG) con formato paraguayo.',
-      'Módulo de Cobro Repartidor Móvil optimizado para registro táctil rápido y navegación fluida.',
-      'Sincronización híbrida en tiempo real con Firebase Firestore y persistencia local sin conexión.'
+      'Soporte oficial para facturas y montos en Guaraníes (PYG) con formato paraguayo.'
     ],
     htmlUrl: `https://github.com/${repo}/releases`,
     assets: [
