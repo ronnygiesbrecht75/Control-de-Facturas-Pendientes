@@ -4,7 +4,8 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { Invoice, InvoiceCategory, PaymentMethod, PaymentDetails } from '../types';
+import { List, RowComponentProps } from 'react-window';
+import { Invoice, InvoiceCategory, PaymentMethod, PaymentDetails, Client } from '../types';
 import { formatPYG, formatInvoiceNumber, formatDateDMY, compareInvoiceNumbers } from '../utils/mockData';
 import { Search, CreditCard, CheckCircle2, AlertCircle, RefreshCw, Layers, ArrowUpDown, Banknote, Building2, FileCheck, Calendar, Eye, ChevronDown } from 'lucide-react';
 import InvoiceDetailModal from './InvoiceDetailModal';
@@ -26,6 +27,73 @@ const sortOptions = [
   { value: 'client-desc', label: 'Cliente: Z a A' },
 ] as const;
 
+type PaymentRowProps = {
+  items: Invoice[];
+  selectedInvoiceId?: string;
+  onSelect: (invoice: Invoice) => void;
+};
+
+const PaymentInvoiceRow = ({ index, style, items, selectedInvoiceId, onSelect }: RowComponentProps<PaymentRowProps>) => {
+  const inv = items[index];
+  const isSelected = selectedInvoiceId === inv.id;
+
+  return (
+    <div style={style} className="box-border">
+      <button
+        id={`select-pay-inv-${inv.id}`}
+        type="button"
+        onClick={() => onSelect(inv)}
+        className={`w-full h-full text-left px-3.5 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-900/40 transition-colors flex items-center justify-between gap-3 border-l-4 border-b border-b-slate-100 dark:border-b-slate-700/60 cursor-pointer ${
+          isSelected 
+            ? 'bg-slate-100 dark:bg-slate-900/60 border-primary-gold' 
+            : inv.paid 
+              ? 'border-l-emerald-500' 
+              : 'border-l-slate-300 dark:border-l-slate-700'
+        }`}
+      >
+        <div className="space-y-0.5 min-w-0 flex-1">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="font-semibold text-xs text-slate-800 dark:text-slate-100 truncate">
+              {inv.clientName}
+            </span>
+            {inv.documentType === 'remision' ? (
+              <span className="bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 text-[9px] px-1.5 py-0.2 rounded font-bold uppercase">
+                REM
+              </span>
+            ) : (
+              <span className="bg-slate-100 dark:bg-slate-700 text-[9px] px-1.5 py-0.2 rounded font-mono text-slate-500 dark:text-slate-300">
+                {inv.category}
+              </span>
+            )}
+          </div>
+          <p className="text-[10px] text-slate-500 font-mono leading-none truncate">
+            {inv.documentType === 'remision' 
+              ? `Remisión N° ${inv.remisionNumero || inv.numero} • Fecha: ${formatDateDMY(inv.invoiceDate)}` 
+              : `No. ${formatInvoiceNumber(inv.sucursal, inv.caja, inv.numero)} • F. Factura: ${formatDateDMY(inv.invoiceDate)}`}
+          </p>
+        </div>
+
+        <div className="text-right space-y-0.5 flex-shrink-0">
+          <p className="text-xs font-mono font-bold text-slate-900 dark:text-slate-100 leading-tight">
+            {formatPYG(inv.amount)}
+          </p>
+          {inv.paid ? (
+            <span className="inline-flex items-center gap-1 text-[9px] text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-50 dark:bg-emerald-950/20 px-1.5 py-0.2 rounded-full leading-none">
+              <CheckCircle2 className="w-2.5 h-2.5" />
+              Cobrada
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 text-[9px] text-amber-600 dark:text-amber-400 font-bold bg-amber-50 dark:bg-amber-950/20 px-1.5 py-0.2 rounded-full leading-none">
+              <AlertCircle className="w-2.5 h-2.5" />
+              Pto. Cobro
+            </span>
+          )}
+        </div>
+      </button>
+    </div>
+  );
+};
+
 interface RegistrarPagosProps {
   invoices: Invoice[];
   onUpdatePayment: (
@@ -36,9 +104,10 @@ interface RegistrarPagosProps {
     details?: PaymentDetails
   ) => void;
   systemDate: string;
+  clients?: Client[];
 }
 
-export default function RegistrarPagos({ invoices, onUpdatePayment, systemDate }: RegistrarPagosProps) {
+export default function RegistrarPagos({ invoices, onUpdatePayment, systemDate, clients = [] }: RegistrarPagosProps) {
   const [search, setSearch] = useState('');
   const [docTypeFilter, setDocTypeFilter] = useState<'all' | 'facturas' | 'remisiones'>('all');
   const [selectedCategory, setSelectedCategory] = useState<'All' | InvoiceCategory>('All');
@@ -183,22 +252,22 @@ export default function RegistrarPagos({ invoices, onUpdatePayment, systemDate }
             Seleccione una factura de la lista para registrar o editar su estado de pago.
           </p>
 
-          <div className="space-y-3">
+          <div className="space-y-2">
             {/* Search */}
             <div className="relative">
-              <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
               <input
                 id="payment-search"
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Buscar cliente, número de factura..."
-                className="w-full pl-9 pr-4 py-1.5 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-xs rounded-lg focus:outline-none focus:ring-1 focus:ring-primary-gold"
+                className="w-full pl-8 pr-3 py-1 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-[11px] rounded-lg focus:outline-none focus:ring-1 focus:ring-primary-gold"
               />
             </div>
 
-            {/* Selectores compactos: Documentos, Categoría y Ordenación */}
-            <div className="flex flex-wrap gap-2 items-center justify-between">
+            {/* Selectores compactos: Documentos, Categoría y Ordenación (15% más chicos) */}
+            <div className="flex flex-wrap gap-1.5 items-center justify-between">
               <div className="flex flex-wrap items-center gap-1.5">
                 {/* Selector de Documentos con flecha */}
                 <div className="relative">
@@ -206,14 +275,14 @@ export default function RegistrarPagos({ invoices, onUpdatePayment, systemDate }
                     id="doc-type-filter-pagos"
                     value={docTypeFilter}
                     onChange={(e) => setDocTypeFilter(e.target.value as 'all' | 'facturas' | 'remisiones')}
-                    className="appearance-none pl-2.5 pr-7 py-1.5 bg-amber-50/60 dark:bg-slate-950 text-slate-900 dark:text-slate-100 border border-amber-300 dark:border-amber-600/50 text-[11px] font-bold rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500 shadow-xs cursor-pointer"
+                    className="appearance-none pl-2 pr-6 py-1 bg-amber-50/60 dark:bg-slate-950 text-slate-900 dark:text-slate-100 border border-amber-300 dark:border-amber-600/50 text-[10px] font-bold rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500 shadow-xs cursor-pointer"
                   >
                     <option value="all">Facturas y Remisiones</option>
                     <option value="facturas">Solo Facturas</option>
                     <option value="remisiones">Solo Remisiones</option>
                   </select>
                   <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-1.5 text-amber-600 dark:text-amber-400">
-                    <ChevronDown className="w-3.5 h-3.5" />
+                    <ChevronDown className="w-3 h-3" />
                   </div>
                 </div>
 
@@ -223,7 +292,7 @@ export default function RegistrarPagos({ invoices, onUpdatePayment, systemDate }
                     id="category-filter-pagos"
                     value={selectedCategory}
                     onChange={(e) => setSelectedCategory(e.target.value as 'All' | InvoiceCategory)}
-                    className="appearance-none pl-2.5 pr-7 py-1.5 bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 text-[11px] font-bold rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500 shadow-xs cursor-pointer"
+                    className="appearance-none pl-2 pr-6 py-1 bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 text-[10px] font-bold rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500 shadow-xs cursor-pointer"
                   >
                     <option value="All">Todas las Categorías</option>
                     <option value="Facturas">Facturas</option>
@@ -231,7 +300,7 @@ export default function RegistrarPagos({ invoices, onUpdatePayment, systemDate }
                     <option value="Cristian">Facturas Cristian</option>
                   </select>
                   <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-1.5 text-slate-500 dark:text-slate-400">
-                    <ChevronDown className="w-3.5 h-3.5" />
+                    <ChevronDown className="w-3 h-3" />
                   </div>
                 </div>
               </div>
@@ -246,7 +315,7 @@ export default function RegistrarPagos({ invoices, onUpdatePayment, systemDate }
                     id="sort-select-pagos"
                     value={sortBy}
                     onChange={(e) => setSortBy(e.target.value as SortOption)}
-                    className="appearance-none pl-2 pr-6 py-1.5 bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 text-[10px] font-bold rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500 shadow-xs cursor-pointer"
+                    className="appearance-none pl-1.5 pr-5 py-1 bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 text-[10px] font-bold rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500 shadow-xs cursor-pointer"
                   >
                     {sortOptions.map((opt) => (
                       <option key={opt.value} value={opt.value} className="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">
@@ -254,8 +323,8 @@ export default function RegistrarPagos({ invoices, onUpdatePayment, systemDate }
                       </option>
                     ))}
                   </select>
-                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-1.5 text-amber-500">
-                    <ArrowUpDown className="w-3 h-3" />
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-1 text-amber-500">
+                    <ArrowUpDown className="w-2.5 h-2.5" />
                   </div>
                 </div>
               </div>
@@ -263,73 +332,27 @@ export default function RegistrarPagos({ invoices, onUpdatePayment, systemDate }
           </div>
         </div>
 
-        {/* List representation */}
-        <div className="overflow-y-auto max-h-[500px] divide-y divide-slate-100 dark:divide-slate-700/60">
+        {/* List representation virtualized with react-window */}
+        <div className="overflow-hidden">
           {sortedFiltered.length === 0 ? (
-            <div className="text-center py-12 px-4 space-y-2">
-              <Layers className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto" />
+            <div className="text-center py-8 px-4 space-y-2">
+              <Layers className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto" />
               <p className="text-xs text-slate-500">
                 No hay facturas que coincidan con la búsqueda.
               </p>
             </div>
           ) : (
-            sortedFiltered.map((inv) => {
-              const isSelected = selectedInvoice?.id === inv.id;
-              
-              return (
-                <button
-                  id={`select-pay-inv-${inv.id}`}
-                  key={inv.id}
-                  onClick={() => setSelectedInvoice(inv)}
-                  className={`w-full text-left p-4 hover:bg-slate-50 dark:hover:bg-slate-900/40 transition-colors flex items-center justify-between gap-4 border-l-4 cursor-pointer ${
-                    isSelected 
-                      ? 'bg-slate-100 dark:bg-slate-900/60 border-primary-gold' 
-                      : inv.paid 
-                        ? 'border-l-emerald-500' 
-                        : 'border-l-slate-300 dark:border-l-slate-700'
-                  }`}
-                >
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-xs text-slate-800 dark:text-slate-100">
-                        {inv.clientName}
-                      </span>
-                      {inv.documentType === 'remision' ? (
-                        <span className="bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 text-[9px] px-1.5 py-0.5 rounded font-bold uppercase">
-                          REM
-                        </span>
-                      ) : (
-                        <span className="bg-slate-100 dark:bg-slate-700 text-[9px] px-1.5 py-0.5 rounded font-mono text-slate-500 dark:text-slate-300">
-                          {inv.category}
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-[10px] text-slate-500 font-mono">
-                      {inv.documentType === 'remision' 
-                        ? `Remisión N° ${inv.remisionNumero || inv.numero} • Fecha: ${formatDateDMY(inv.invoiceDate)}` 
-                        : `No. ${formatInvoiceNumber(inv.sucursal, inv.caja, inv.numero)} • F. Factura: ${formatDateDMY(inv.invoiceDate)}`}
-                    </p>
-                  </div>
-
-                  <div className="text-right space-y-1">
-                    <p className="text-xs font-mono font-bold text-slate-900 dark:text-slate-100">
-                      {formatPYG(inv.amount)}
-                    </p>
-                    {inv.paid ? (
-                      <span className="inline-flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400 font-bold bg-emerald-50 dark:bg-emerald-950/20 px-2 py-0.5 rounded-full">
-                        <CheckCircle2 className="w-3 h-3" />
-                        Cobrada
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 text-[10px] text-amber-600 dark:text-amber-400 font-bold bg-amber-50 dark:bg-amber-950/20 px-2 py-0.5 rounded-full">
-                        <AlertCircle className="w-3 h-3" />
-                        Pto. Cobro
-                      </span>
-                    )}
-                  </div>
-                </button>
-              );
-            })
+            <List
+              rowCount={sortedFiltered.length}
+              rowHeight={56}
+              style={{ height: Math.min(520, Math.max(120, sortedFiltered.length * 56)), width: '100%' }}
+              rowComponent={PaymentInvoiceRow}
+              rowProps={{
+                items: sortedFiltered,
+                selectedInvoiceId: selectedInvoice?.id,
+                onSelect: setSelectedInvoice
+              }}
+            />
           )}
         </div>
 
@@ -582,6 +605,7 @@ export default function RegistrarPagos({ invoices, onUpdatePayment, systemDate }
         isOpen={!!invoiceToView}
         invoice={invoiceToView}
         systemDate={systemDate}
+        clients={clients}
         onClose={() => setInvoiceToView(null)}
       />
 

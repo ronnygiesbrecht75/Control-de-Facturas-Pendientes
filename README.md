@@ -1,6 +1,6 @@
-# Control de Pagos - v1.6.0
+# Control de Pagos - v1.7.0
 
-[![Versión](https://img.shields.io/badge/version-1.6.0-blue.svg)](https://github.com/ronnygiesbrecht75/Control-de-Facturas-Pendientes/releases)
+[![Versión](https://img.shields.io/badge/version-1.7.0-blue.svg)](https://github.com/ronnygiesbrecht75/Control-de-Facturas-Pendientes/releases)
 [![React](https://img.shields.io/badge/React-19-61DAFB.svg)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6.svg)](https://www.typescriptlang.org/)
 [![Tailwind CSS](https://img.shields.io/badge/TailwindCSS-4.1-38B2AC.svg)](https://tailwindcss.com/)
@@ -14,7 +14,11 @@ Sistema integral y multiplataforma (**Web**, **Windows Desktop** y **Android Mó
 
 ## 🌟 Características Principales
 
-- 📦 **Ventas de Remisión (Nuevo en v1.6.0)**:
+- ⚡ **Virtualización de Alto Rendimiento (Nuevo en v1.7.0)**:
+  - Renderizado virtualizado con `react-window` en `FacturaList` y `RegistrarPagos` para manejar miles de facturas sin degradar la memoria ni la fluidez del navegador.
+  - Opciones de visualización expandidas (25, 50, 100, 250, 500 o todas a la vez).
+  - Búsqueda por rango de fechas (Desde/Hasta) con navegación asistida por teclado mediante la tecla **Enter**.
+- 📦 **Ventas de Remisión**:
   - Pestaña dedicada **"Registrar Remisión"** con un único número de remisión y sin plazo de vencimiento.
   - Integración transparente en el listado de **Facturas General**.
   - Selector de filtro desplegable interactivo: *"Facturas y Remisiones"*, *"Solo Facturas"* o *"Solo Remisiones"*.

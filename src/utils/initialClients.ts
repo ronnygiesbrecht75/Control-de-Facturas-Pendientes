@@ -3,13 +3,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export interface Client {
-  id: string;
-  name: string;
-  createdAt: string;
-}
+import { Client } from '../types';
 
-export const initialClients: Client[] = [
+export type { Client };
+
+const rawClients: Omit<Client, 'code'>[] = [
   { id: "c1", name: "A.M.A.E.", createdAt: "2026-01-01" },
   { id: "c2", name: "Abram Schroeder Froese", createdAt: "2026-01-01" },
   { id: "c3", name: "Adorno Ruiz Diaz, Pablina", createdAt: "2026-01-01" },
@@ -222,3 +220,8 @@ export const initialClients: Client[] = [
   { id: "c209", name: "Venzke, Jandir Inacio", createdAt: "2026-01-01" },
   { id: "c210", name: "Zardus S.A.", createdAt: "2026-01-01" }
 ];
+
+export const initialClients: Client[] = rawClients.map((c, idx) => ({
+  ...c,
+  code: idx + 1
+}));

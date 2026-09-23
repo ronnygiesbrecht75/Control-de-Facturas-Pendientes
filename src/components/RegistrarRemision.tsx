@@ -225,9 +225,6 @@ export default function RegistrarRemision({
                   required
                 />
               </div>
-              <p className="text-[10px] text-slate-500 mt-1 font-mono">
-                Identificador: <span className="font-bold text-slate-700 dark:text-slate-300">{remisionNumero ? `Remisión N° ${remisionNumero}` : 'Ingrese el número de la nota'}</span>
-              </p>
             </div>
           </div>
 
@@ -240,18 +237,18 @@ export default function RegistrarRemision({
               <input
                 id="remision-amount-input"
                 ref={amountInputRef}
-                type="number"
-                min={0}
-                value={amount || ''}
-                onChange={(e) => setAmount(Number(e.target.value))}
+                type="text"
+                inputMode="numeric"
+                value={amount ? amount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.') : ''}
+                onChange={(e) => {
+                  const raw = e.target.value.replace(/\D/g, '');
+                  setAmount(raw ? parseInt(raw, 10) : 0);
+                }}
                 onKeyDown={(e) => handleKeyDownNext(e, dateInputRef)}
                 className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500 font-mono font-bold text-base"
-                placeholder="Monto en Guaraníes"
+                placeholder="0"
                 required
               />
-              <p className="text-[11px] text-amber-600 dark:text-amber-400 font-mono mt-1 font-medium">
-                {formatPYG(amount)} Gs.
-              </p>
             </div>
 
             {/* 4. Fecha de Remisión */}
@@ -269,9 +266,6 @@ export default function RegistrarRemision({
                 className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500 font-semibold text-sm"
                 required
               />
-              <p className="text-[10px] text-slate-500 mt-1">
-                Fecha de expedición del documento
-              </p>
             </div>
           </div>
 

@@ -5,7 +5,7 @@
 
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { Invoice } from '../types';
+import { Invoice, Client } from '../types';
 import { 
   formatDateDMY, 
   formatInvoiceNumber, 
@@ -24,8 +24,12 @@ export interface PDFExportOptions {
   searchFilter?: string;
   categoryFilter?: string;
   statusFilter?: string;
+  startDate?: string;
+  endDate?: string;
   systemDate: string;
   companyName?: string;
+  clients?: Client[];
+  clientRuc?: string;
 }
 
 export function formatCategoryShort(cat: string): string {
@@ -58,15 +62,30 @@ export async function generateInvoicesPDF(
   const now = new Date();
   const timeFormatted = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-  // Determine client name
+  // Determine client name and RUC
   const uniqueClients = Array.from(new Set(invoices.map((i) => i.clientName.trim()).filter(Boolean)));
   let displayClient = 'Todos los Clientes (General)';
+  let clientRuc: string | undefined = options.clientRuc;
+
   if (uniqueClients.length === 1) {
     displayClient = uniqueClients[0];
+    if (!clientRuc) {
+      const invRuc = invoices.find((i) => i.clientRuc)?.clientRuc;
+      const matchedClient = options.clients?.find(
+        (c) => c.name.trim().toLowerCase() === uniqueClients[0].toLowerCase()
+      );
+      clientRuc = invRuc || matchedClient?.ruc;
+    }
   } else if (options.searchFilter && options.searchFilter.trim()) {
     displayClient = `${options.searchFilter.trim()} (${uniqueClients.length} clientes coincidentes)`;
     if (uniqueClients.length <= 2) {
       displayClient = uniqueClients.join(', ');
+    }
+    if (!clientRuc && uniqueClients.length === 1) {
+      const matchedClient = options.clients?.find(
+        (c) => c.name.trim().toLowerCase() === uniqueClients[0].toLowerCase()
+      );
+      clientRuc = matchedClient?.ruc;
     }
   }
 
@@ -76,8 +95,12 @@ export async function generateInvoicesPDF(
     .filter(Boolean)
     .sort();
   
-  const fromDate = validDates.length > 0 ? formatDateDMY(validDates[0]) : todayFormatted;
-  const toDate = validDates.length > 0 ? formatDateDMY(validDates[validDates.length - 1]) : todayFormatted;
+  const fromDate = options.startDate 
+    ? formatDateDMY(options.startDate) 
+    : (validDates.length > 0 ? formatDateDMY(validDates[0]) : todayFormatted);
+  const toDate = options.endDate 
+    ? formatDateDMY(options.endDate) 
+    : (validDates.length > 0 ? formatDateDMY(validDates[validDates.length - 1]) : todayFormatted);
 
   // 1. HEADER BANNER (Slate-900 with Amber Accent & Walter Logo)
   doc.setFillColor(15, 23, 42); // slate-900
@@ -114,12 +137,13 @@ export async function generateInvoicesPDF(
   doc.text(`Fecha del Reporte: ${todayFormatted}`, 196, 11.5, { align: 'right' });
   doc.text(`Hora: ${timeFormatted}`, 196, 18.5, { align: 'right' });
 
-  // 2. CLIENT AND DATE INFO BOX (As requested: Client Name + Date range + Generation Date)
+  // 2. CLIENT AND DATE INFO BOX (As requested: Client Name + RUC + Date range + Generation Date)
   let currentY = 32;
+  const boxHeight = clientRuc ? 22 : 18;
 
   doc.setFillColor(248, 250, 252); // slate-50
   doc.setDrawColor(203, 213, 225); // slate-300
-  doc.roundedRect(14, currentY, 182, 18, 2, 2, 'FD');
+  doc.roundedRect(14, currentY, 182, boxHeight, 2, 2, 'FD');
 
   // Left side: Client Info
   doc.setFontSize(8);
@@ -127,12 +151,21 @@ export async function generateInvoicesPDF(
   doc.setTextColor(71, 85, 105); // slate-600
   doc.text('CLIENTE / CUENTA:', 18, currentY + 6);
 
-  doc.setFontSize(10);
+  doc.setFontSize(9.5);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(15, 23, 42); // slate-900
   // Truncate client name if too long to avoid overlap
   const truncatedClient = displayClient.length > 55 ? displayClient.substring(0, 52) + '...' : displayClient;
-  doc.text(truncatedClient, 18, currentY + 13);
+
+  if (clientRuc) {
+    doc.text(truncatedClient, 18, currentY + 11.5);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(217, 119, 6); // amber-600
+    doc.text(`RUC / C.I.: ${clientRuc}`, 18, currentY + 17);
+  } else {
+    doc.text(truncatedClient, 18, currentY + 13);
+  }
 
   // Right side: Date Range Info (Desde ... Hasta ...)
   doc.setFontSize(8);
@@ -145,7 +178,7 @@ export async function generateInvoicesPDF(
   doc.setTextColor(30, 41, 59);
   doc.text(`Desde: ${fromDate}   Hasta: ${toDate}`, 125, currentY + 12.5);
 
-  currentY += 23;
+  currentY += boxHeight + 5;
 
   // 3. SUMMARY METRICS CARDS (Total Facturado, Liquidado, Pendiente)
   const totalAmount = invoices.reduce((acc, curr) => acc + (curr.amount || 0), 0);
@@ -345,7 +378,8 @@ export async function generateInvoicesPDF(
 export async function generateSingleInvoiceReceiptPDF(
   invoice: Invoice,
   systemDate: string,
-  companyName: string = 'COMERCIAL WALTER'
+  companyName: string = 'COMERCIAL WALTER',
+  clientRuc?: string
 ) {
   const doc = new jsPDF({
     orientation: 'portrait',
@@ -485,18 +519,26 @@ export async function generateSingleInvoiceReceiptPDF(
 
   y += 30;
 
+  const resolvedRuc = clientRuc || invoice.clientRuc;
+  const invoiceDataRows: any[] = [
+    ['Cliente / Razón Social', invoice.clientName],
+  ];
+  if (resolvedRuc) {
+    invoiceDataRows.push(['RUC / C.I.', resolvedRuc]);
+  }
+  invoiceDataRows.push(
+    ['N° de Factura Completo', formattedNum],
+    ['Fecha de Emisión', formatDateDMY(invoice.invoiceDate)],
+    ['Condición / Plazo de Crédito', invoice.terms && invoice.terms > 0 ? `${invoice.terms} días` : 'Contado'],
+    ['Fecha de Vencimiento', formatDateDMY(dueDateStr)],
+  );
+
   // Invoice Data Table
   autoTable(doc, {
     startY: y,
     theme: 'grid',
     head: [['DATOS GENERALES DE LA FACTURA', '']],
-    body: [
-      ['Cliente / Razón Social', invoice.clientName],
-      ['N° de Factura Completo', formattedNum],
-      ['Fecha de Emisión', formatDateDMY(invoice.invoiceDate)],
-      ['Condición / Plazo de Crédito', invoice.terms && invoice.terms > 0 ? `${invoice.terms} días` : 'Contado'],
-      ['Fecha de Vencimiento', formatDateDMY(dueDateStr)],
-    ],
+    body: invoiceDataRows,
     headStyles: {
       fillColor: [15, 23, 42],
       textColor: [255, 255, 255],

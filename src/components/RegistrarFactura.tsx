@@ -6,7 +6,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Invoice, InvoiceCategory, Client } from '../types';
 import { formatPYG, formatInvoiceNumber } from '../utils/mockData';
-import { PlusCircle, Info, FileText, Check, ChevronDown } from 'lucide-react';
+import { PlusCircle, Info, FileText, Check, ChevronDown, Search, Users, X, Loader2, Sparkles } from 'lucide-react';
+import { lookupRucParaguay, formatRuc } from '../utils/rucService';
 
 interface RegistrarFacturaProps {
   onAddInvoice: (invoice: Omit<Invoice, 'id'>) => void;
@@ -16,7 +17,11 @@ interface RegistrarFacturaProps {
 
 export default function RegistrarFactura({ onAddInvoice, systemDate, clients = [] }: RegistrarFacturaProps) {
   // Input references for sequential Enter navigation
+  const clientCodeInputRef = useRef<HTMLInputElement>(null);
   const clientInputRef = useRef<HTMLInputElement>(null);
+  const searchModalInputRef = useRef<HTMLInputElement>(null);
+  const modalListRef = useRef<HTMLDivElement>(null);
+
   const sucursalInputRef = useRef<HTMLInputElement>(null);
   const cajaInputRef = useRef<HTMLInputElement>(null);
   const numeroInputRef = useRef<HTMLInputElement>(null);
@@ -30,8 +35,18 @@ export default function RegistrarFactura({ onAddInvoice, systemDate, clients = [
 
   // Local state for the register form
   const [category, setCategory] = useState<InvoiceCategory>('Facturas');
-  const [clientName, setClientName] = useState('');
+  const [clientCode, setClientCode] = useState<string>('');
+  const [clientName, setClientName] = useState<string>('');
+  const [clientRuc, setClientRuc] = useState<string>('');
+  const [isSearchingRuc, setIsSearchingRuc] = useState<boolean>(false);
+  const [rucSuccessMsg, setRucSuccessMsg] = useState<string | null>(null);
+  const clientRucInputRef = useRef<HTMLInputElement>(null);
   
+  // Client search modal state (F5)
+  const [showSearchModal, setShowSearchModal] = useState<boolean>(false);
+  const [modalSearchTerm, setModalSearchTerm] = useState<string>('');
+  const [highlightedIndex, setHighlightedIndex] = useState<number>(0);
+
   // Paraguay invoice number components
   const [sucursal, setSucursal] = useState('001');
   const [caja, setCaja] = useState('009');
@@ -59,6 +74,198 @@ export default function RegistrarFactura({ onAddInvoice, systemDate, clients = [
     }
   }, [paid, amount]);
 
+  // Global F5 key listener to open the client search modal and prevent browser reload
+  useEffect(() => {
+    const handleGlobalF5 = (e: KeyboardEvent) => {
+      if (e.key === 'F5') {
+        e.preventDefault();
+        e.stopPropagation();
+        openSearchModal();
+      }
+    };
+    window.addEventListener('keydown', handleGlobalF5, true);
+    return () => {
+      window.removeEventListener('keydown', handleGlobalF5, true);
+    };
+  }, []);
+
+  // Filter clients inside the F5 search modal
+  const modalFilteredClients = clients.filter((c) => {
+    const term = modalSearchTerm.trim().toLowerCase();
+    if (!term) return true;
+    const matchName = c.name.toLowerCase().includes(term);
+    const matchCode = typeof c.code === 'number' && c.code.toString().includes(term);
+    const matchRuc = c.ruc ? c.ruc.toLowerCase().includes(term) : false;
+    return matchName || matchCode || matchRuc;
+  });
+
+  // Reset highlight index when search term changes
+  useEffect(() => {
+    setHighlightedIndex(0);
+  }, [modalSearchTerm]);
+
+  const openSearchModal = () => {
+    setModalSearchTerm('');
+    setHighlightedIndex(0);
+    setShowSearchModal(true);
+    setTimeout(() => {
+      searchModalInputRef.current?.focus();
+      searchModalInputRef.current?.select();
+    }, 50);
+  };
+
+  const selectClient = (c: Client) => {
+    setClientCode(typeof c.code === 'number' ? String(c.code) : '');
+    setClientName(c.name);
+    setClientRuc(c.ruc || '');
+    setRucSuccessMsg(c.ruc ? `✓ RUC: ${c.ruc}` : null);
+    setShowSearchModal(false);
+    setNotification(null);
+    setTimeout(() => {
+      sucursalInputRef.current?.focus();
+      sucursalInputRef.current?.select();
+    }, 50);
+  };
+
+  const handleLookupRuc = async () => {
+    const rawRuc = clientRuc.trim();
+    if (!rawRuc) {
+      setNotification({
+        type: 'error',
+        message: 'Ingrese un número de RUC o C.I. para realizar la búsqueda automática.'
+      });
+      clientRucInputRef.current?.focus();
+      return;
+    }
+
+    // 1. Check if client already exists in local list
+    const cleanNum = rawRuc.replace(/[^\d-]/g, '');
+    const foundExisting = clients.find(c => c.ruc && c.ruc.replace(/[^\d-]/g, '') === cleanNum);
+    if (foundExisting) {
+      setClientName(foundExisting.name);
+      setClientCode(foundExisting.code ? String(foundExisting.code) : '');
+      setClientRuc(foundExisting.ruc || rawRuc);
+      setRucSuccessMsg(`✓ Cliente en lista local: ${foundExisting.name}`);
+      setNotification({
+        type: 'success',
+        message: `Cliente encontrado: "${foundExisting.name}" (Cód. #${foundExisting.code || '-'}).`
+      });
+      sucursalInputRef.current?.focus();
+      sucursalInputRef.current?.select();
+      return;
+    }
+
+    setIsSearchingRuc(true);
+    setRucSuccessMsg(null);
+    try {
+      const res = await lookupRucParaguay(rawRuc);
+      if (res.success && res.razonSocial) {
+        setClientName(res.razonSocial);
+        if (res.ruc) setClientRuc(res.ruc);
+        setRucSuccessMsg(`✓ SET/DNIT: ${res.razonSocial} (${res.estado || 'Activo'})`);
+        setNotification({
+          type: 'success',
+          message: `Razón Social obtenida de la SET/DNIT: "${res.razonSocial}".`
+        });
+        setTimeout(() => {
+          sucursalInputRef.current?.focus();
+          sucursalInputRef.current?.select();
+        }, 50);
+      } else {
+        setNotification({
+          type: 'error',
+          message: res.error || 'No se encontró el RUC en el padrón tributario.'
+        });
+      }
+    } catch {
+      setNotification({ type: 'error', message: 'Error de red al consultar el RUC.' });
+    } finally {
+      setIsSearchingRuc(false);
+    }
+  };
+
+  const handleModalKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlightedIndex((prev) => Math.min(prev + 1, modalFilteredClients.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightedIndex((prev) => Math.max(prev - 1, 0));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (modalFilteredClients.length > 0) {
+        const target = modalFilteredClients[highlightedIndex] || modalFilteredClients[0];
+        if (target) selectClient(target);
+      }
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      setShowSearchModal(false);
+      setTimeout(() => {
+        clientCodeInputRef.current?.focus();
+        clientCodeInputRef.current?.select();
+      }, 50);
+    }
+  };
+
+  // Handle Enter on Client Code Input
+  const handleClientCodeKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const val = clientCode.trim();
+      if (!val) {
+        if (clientName.trim()) {
+          sucursalInputRef.current?.focus();
+          sucursalInputRef.current?.select();
+        } else {
+          setNotification({
+            type: 'error',
+            message: 'Ingrese el código del cliente o presione [F5] para buscar.'
+          });
+        }
+        return;
+      }
+
+      const codeNum = parseInt(val, 10);
+      const found = clients.find((c) => c.code === codeNum);
+      if (found) {
+        setClientName(found.name);
+        setClientCode(String(found.code));
+        setClientRuc(found.ruc || '');
+        setRucSuccessMsg(found.ruc ? `✓ RUC: ${found.ruc}` : null);
+        setNotification(null);
+        sucursalInputRef.current?.focus();
+        sucursalInputRef.current?.select();
+      } else {
+        setNotification({
+          type: 'error',
+          message: `El código #${val} no existe en clientes. Presione [F5] para buscar.`
+        });
+      }
+    } else if (e.key === 'F5') {
+      e.preventDefault();
+      e.stopPropagation();
+      openSearchModal();
+    }
+  };
+
+  const handleClientNameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (!clientCode && clientName.trim()) {
+        const found = clients.find((c) => c.name.toLowerCase() === clientName.trim().toLowerCase());
+        if (found && typeof found.code === 'number') {
+          setClientCode(String(found.code));
+        }
+      }
+      sucursalInputRef.current?.focus();
+      sucursalInputRef.current?.select();
+    } else if (e.key === 'F5') {
+      e.preventDefault();
+      e.stopPropagation();
+      openSearchModal();
+    }
+  };
+
   // Helper for sequential Enter key navigation
   const handleKeyDownNext = (
     e: React.KeyboardEvent<HTMLInputElement>,
@@ -69,7 +276,12 @@ export default function RegistrarFactura({ onAddInvoice, systemDate, clients = [
       e.preventDefault();
       if (nextRef.current) {
         nextRef.current.focus();
-        if (selectContent && 'select' in nextRef.current && typeof nextRef.current.select === 'function') {
+        if (
+          selectContent && 
+          'select' in nextRef.current && 
+          typeof nextRef.current.select === 'function' &&
+          (nextRef.current as HTMLInputElement).type !== 'date'
+        ) {
           (nextRef.current as HTMLInputElement).select();
         }
       }
@@ -95,7 +307,25 @@ export default function RegistrarFactura({ onAddInvoice, systemDate, clients = [
       setPaid(false);
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      submitBtnRef.current?.focus();
+      const isCurrentlyPaid = paid || e.currentTarget.value === '1';
+      if (isCurrentlyPaid) {
+        if (!paid) {
+          setPaid(true);
+          if (paidAmount === 0 && amount > 0) {
+            setPaidAmount(amount);
+          }
+        }
+        // Si el pago es Sí, pasar primero al cuadro de monto de pago
+        setTimeout(() => {
+          if (paidAmountInputRef.current) {
+            paidAmountInputRef.current.focus();
+            paidAmountInputRef.current.select();
+          }
+        }, 40);
+      } else {
+        // Si el pago es No, pasar directamente al botón guardar factura registrada
+        submitBtnRef.current?.focus();
+      }
     }
   };
 
@@ -103,8 +333,8 @@ export default function RegistrarFactura({ onAddInvoice, systemDate, clients = [
     e.preventDefault();
 
     if (!clientName.trim()) {
-      setNotification({ type: 'error', message: 'Por favor, ingrese el nombre del cliente.' });
-      clientInputRef.current?.focus();
+      setNotification({ type: 'error', message: 'Por favor, ingrese el código del cliente o selecciónelo con F5.' });
+      clientCodeInputRef.current?.focus();
       return;
     }
 
@@ -128,6 +358,8 @@ export default function RegistrarFactura({ onAddInvoice, systemDate, clients = [
     const newInvoice: Omit<Invoice, 'id'> = {
       category,
       clientName: clientName.trim(),
+      clientCode: clientCode ? parseInt(clientCode, 10) : undefined,
+      clientRuc: clientRuc.trim() ? formatRuc(clientRuc.trim()) : undefined,
       sucursal: cleanSucursal,
       caja: cleanCaja,
       numero: cleanNumero,
@@ -141,7 +373,10 @@ export default function RegistrarFactura({ onAddInvoice, systemDate, clients = [
     onAddInvoice(newInvoice);
 
     // Reset fields for the next entry
+    setClientCode('');
     setClientName('');
+    setClientRuc('');
+    setRucSuccessMsg(null);
     setNumero('');
     setAmount(0);
     setTerms(0);
@@ -149,9 +384,10 @@ export default function RegistrarFactura({ onAddInvoice, systemDate, clients = [
     setPaidAmount(0);
     setNotification({ type: 'success', message: '¡Factura registrada exitosamente!' });
 
-    // Instantly refocus the very first field ("Nombre del Cliente") to start next entry with Enter
+    // Instantly refocus the very first field ("Código del Cliente") to start next entry with Enter
     setTimeout(() => {
-      clientInputRef.current?.focus();
+      clientCodeInputRef.current?.focus();
+      clientCodeInputRef.current?.select();
     }, 50);
 
     // Clear notification after 4 seconds
@@ -162,7 +398,7 @@ export default function RegistrarFactura({ onAddInvoice, systemDate, clients = [
 
   // Focus the first input field on component load
   useEffect(() => {
-    clientInputRef.current?.focus();
+    clientCodeInputRef.current?.focus();
   }, []);
 
   return (
@@ -202,7 +438,7 @@ export default function RegistrarFactura({ onAddInvoice, systemDate, clients = [
                 value={category}
                 onChange={(e) => {
                   setCategory(e.target.value as InvoiceCategory);
-                  clientInputRef.current?.focus();
+                  clientCodeInputRef.current?.focus();
                 }}
                 className="w-full appearance-none pl-3.5 pr-10 py-2.5 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg border border-slate-300 dark:border-slate-700 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-amber-500 cursor-pointer shadow-xs"
               >
@@ -217,34 +453,118 @@ export default function RegistrarFactura({ onAddInvoice, systemDate, clients = [
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            {/* 1. Nombre del Cliente */}
+            {/* 1. Código y Nombre del Cliente con soporte F5 */}
             <div>
-              <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1" htmlFor="client-name">
-                Nombre del Cliente
-              </label>
-              <input
-                id="client-name"
-                ref={clientInputRef}
-                list="clients-datalist"
-                type="text"
-                value={clientName}
-                onChange={(e) => setClientName(e.target.value)}
-                onKeyDown={(e) => handleKeyDownNext(e, sucursalInputRef, true)}
-                className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-primary-gold font-medium"
-                placeholder="Ej. Herrero Group S.A."
-                required
-              />
-              <datalist id="clients-datalist">
-                {clients.map((c) => (
-                  <option key={c.id} value={c.name} />
-                ))}
-              </datalist>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400" htmlFor="client-code-input">
+                  Cliente
+                </label>
+                <button
+                  type="button"
+                  onClick={openSearchModal}
+                  className="text-[11px] font-bold text-amber-700 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300 inline-flex items-center gap-1.5 cursor-pointer bg-amber-100/70 dark:bg-amber-950/50 hover:bg-amber-200/70 px-2 py-0.5 rounded-lg border border-amber-300 dark:border-amber-800 transition-colors"
+                  title="Buscar cliente por nombre o código (F5)"
+                >
+                  <Search className="w-3 h-3" />
+                  <span>Buscar</span>
+                  <span className="font-mono text-[9px] font-black bg-amber-500 text-slate-950 px-1 py-0.2 rounded shadow-xs">
+                    F5
+                  </span>
+                </button>
+              </div>
+
+              <div className="grid grid-cols-12 gap-2 items-center">
+                {/* Cuadro chico para el código de cliente */}
+                <div className="col-span-4 sm:col-span-3">
+                  <input
+                    id="client-code-input"
+                    ref={clientCodeInputRef}
+                    type="text"
+                    inputMode="numeric"
+                    value={clientCode}
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/\D/g, '');
+                      setClientCode(val);
+                      if (val) {
+                        const found = clients.find(c => c.code === Number(val));
+                        if (found) {
+                          setClientName(found.name);
+                          setClientRuc(found.ruc || '');
+                          setRucSuccessMsg(found.ruc ? `✓ RUC: ${found.ruc}` : null);
+                        }
+                      }
+                    }}
+                    onKeyDown={handleClientCodeKeyDown}
+                    className="w-full text-center px-2 py-2 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-primary-gold font-mono font-black text-sm"
+                    placeholder="Cód."
+                    title="Ingrese el código del cliente y presione Enter (o F5 para buscar)"
+                  />
+                </div>
+
+                {/* Cuadro del nombre asignado al código */}
+                <div className="col-span-8 sm:col-span-9">
+                  <input
+                    id="client-name"
+                    ref={clientInputRef}
+                    type="text"
+                    value={clientName}
+                    onChange={(e) => setClientName(e.target.value)}
+                    onKeyDown={handleClientNameKeyDown}
+                    className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-primary-gold font-medium text-sm"
+                    placeholder="Nombre del cliente o Razón Social"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Buscador de RUC Paraguay */}
+              <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center gap-1.5">
+                <input
+                  id="invoice-client-ruc"
+                  ref={clientRucInputRef}
+                  type="text"
+                  value={clientRuc}
+                  onChange={(e) => {
+                    setClientRuc(e.target.value);
+                    setRucSuccessMsg(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleLookupRuc();
+                    }
+                  }}
+                  className="flex-1 px-2.5 py-1.5 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500 font-mono text-xs font-bold"
+                  placeholder="RUC / C.I. (Opcional - ej. 80003000-1)"
+                  title="Ingrese RUC y presione Enter o Buscar para autocompletar la Razón Social"
+                />
+                <button
+                  type="button"
+                  onClick={handleLookupRuc}
+                  disabled={isSearchingRuc}
+                  className="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg text-xs flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50 shrink-0"
+                  title="Consultar RUC en el padrón SET/DNIT"
+                >
+                  {isSearchingRuc ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Search className="w-3.5 h-3.5" />
+                  )}
+                  <span>Buscar RUC</span>
+                </button>
+              </div>
+
+              {rucSuccessMsg && (
+                <p className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 mt-1 truncate animate-fade-in">
+                  {rucSuccessMsg}
+                </p>
+              )}
             </div>
 
             {/* 2. N° de Factura tipo Paraguay */}
             <div>
               <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">
-                N° de Factura (Sucursal - Caja - Número)
+                N° de Factura
               </label>
               <div className="grid grid-cols-12 gap-1 items-center">
                 <input
@@ -287,9 +607,6 @@ export default function RegistrarFactura({ onAddInvoice, systemDate, clients = [
                   required
                 />
               </div>
-              <p className="text-[10px] text-slate-500 mt-1 font-mono">
-                Vista Previa: <span className="font-bold text-slate-700 dark:text-slate-300">{formatInvoiceNumber(sucursal, caja, numero)}</span>
-              </p>
             </div>
           </div>
 
@@ -302,18 +619,18 @@ export default function RegistrarFactura({ onAddInvoice, systemDate, clients = [
               <input
                 id="amount-input"
                 ref={amountInputRef}
-                type="number"
-                min={0}
-                value={amount || ''}
-                onChange={(e) => setAmount(Number(e.target.value))}
+                type="text"
+                inputMode="numeric"
+                value={amount ? amount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.') : ''}
+                onChange={(e) => {
+                  const raw = e.target.value.replace(/\D/g, '');
+                  setAmount(raw ? parseInt(raw, 10) : 0);
+                }}
                 onKeyDown={(e) => handleKeyDownNext(e, dateInputRef)}
                 className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-primary-gold font-mono font-bold"
-                placeholder="Monto en Guaraníes"
+                placeholder="0"
                 required
               />
-              <p className="text-[11px] text-amber-600 dark:text-amber-400 font-mono mt-1 font-medium">
-                {formatPYG(amount)} Gs.
-              </p>
             </div>
 
             {/* 4. Fecha de Factura */}
@@ -349,9 +666,6 @@ export default function RegistrarFactura({ onAddInvoice, systemDate, clients = [
                 className="w-full px-3.5 py-2 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-primary-gold font-bold"
                 placeholder="0"
               />
-              <p className="text-[10px] text-slate-500 mt-1">
-                Cálculo de vencimientos
-              </p>
             </div>
 
             {/* 6. Cuadro Pago con Flecha y códigos 1 (Sí) / 2 (No) */}
@@ -401,17 +715,17 @@ export default function RegistrarFactura({ onAddInvoice, systemDate, clients = [
                 <input
                   id="paid-amount-input"
                   ref={paidAmountInputRef}
-                  type="number"
-                  min={0}
-                  value={paidAmount || ''}
-                  onChange={(e) => setPaidAmount(Number(e.target.value))}
+                  type="text"
+                  inputMode="numeric"
+                  value={paidAmount ? paidAmount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.') : ''}
+                  onChange={(e) => {
+                    const raw = e.target.value.replace(/\D/g, '');
+                    setPaidAmount(raw ? parseInt(raw, 10) : 0);
+                  }}
                   onKeyDown={(e) => handleKeyDownNext(e, paymentDateInputRef)}
                   className="w-full px-3.5 py-1.5 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 rounded-lg border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-mono font-bold"
-                  placeholder="Monto liquidado"
+                  placeholder="0"
                 />
-                <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-mono mt-1 font-medium">
-                  Liquidado: {formatPYG(paidAmount || amount)} Gs.
-                </p>
               </div>
 
               <div>
@@ -445,6 +759,128 @@ export default function RegistrarFactura({ onAddInvoice, systemDate, clients = [
 
         </form>
       </div>
+
+      {/* MODAL DIALOG: Búsqueda de Clientes (F5) */}
+      {showSearchModal && (
+        <div 
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="client-search-title"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/65 backdrop-blur-xs animate-fade-in"
+          onClick={() => {
+            setShowSearchModal(false);
+            setTimeout(() => clientCodeInputRef.current?.focus(), 50);
+          }}
+        >
+          <div 
+            className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[85vh] animate-scale-in"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="p-4 bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 flex items-center justify-between shadow-xs">
+              <div className="flex items-center gap-2.5">
+                <Users className="w-5 h-5 text-slate-950" />
+                <div>
+                  <h3 id="client-search-title" className="font-bold text-sm font-display tracking-tight text-slate-950">
+                    Buscar Cliente
+                  </h3>
+                  <p className="text-[11px] font-semibold text-slate-900/80">
+                    Navegue con ↑ ↓ y presione Enter para seleccionar
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-xs font-black bg-slate-950 text-amber-400 px-2 py-0.5 rounded-md shadow-xs">
+                  F5
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSearchModal(false);
+                    setTimeout(() => clientCodeInputRef.current?.focus(), 50);
+                  }}
+                  className="p-1 rounded-lg hover:bg-black/15 text-slate-950 transition-colors cursor-pointer"
+                  title="Cerrar búsqueda (Esc)"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Search Input Box */}
+            <div className="p-3 border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60">
+              <div className="relative">
+                <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
+                <input
+                  ref={searchModalInputRef}
+                  type="text"
+                  value={modalSearchTerm}
+                  onChange={(e) => setModalSearchTerm(e.target.value)}
+                  onKeyDown={handleModalKeyDown}
+                  placeholder="Escriba código o nombre del cliente..."
+                  className="w-full pl-9 pr-4 py-2 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 rounded-xl border border-slate-300 dark:border-slate-700 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+            </div>
+
+            {/* Results List */}
+            <div ref={modalListRef} className="overflow-y-auto p-2 space-y-1 divide-y divide-slate-100 dark:divide-slate-700/50 flex-1">
+              {modalFilteredClients.length === 0 ? (
+                <div className="py-8 text-center text-xs text-slate-500 dark:text-slate-400 font-mono">
+                  No se encontraron clientes con "{modalSearchTerm}".
+                </div>
+              ) : (
+                modalFilteredClients.map((client, index) => {
+                  const isSelected = index === highlightedIndex;
+                  return (
+                    <div
+                      key={client.id}
+                      onClick={() => selectClient(client)}
+                      onMouseEnter={() => setHighlightedIndex(index)}
+                      className={`p-2.5 rounded-xl flex items-center justify-between cursor-pointer transition-colors ${
+                        isSelected
+                          ? 'bg-amber-100/90 dark:bg-amber-950/70 text-slate-950 dark:text-slate-100 border border-amber-300 dark:border-amber-700 shadow-xs'
+                          : 'hover:bg-slate-50 dark:hover:bg-slate-900/40 text-slate-800 dark:text-slate-200'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span className="font-mono text-xs font-black px-2 py-0.5 rounded-md bg-amber-500 text-slate-950 shrink-0">
+                          #{client.code || '-'}
+                        </span>
+                        <div className="min-w-0">
+                          <span className="text-xs font-bold block truncate">
+                            {client.name}
+                          </span>
+                          {client.ruc && (
+                            <span className="font-mono text-[10px] font-bold text-amber-700 dark:text-amber-400 block">
+                              RUC: {client.ruc}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      {isSelected && (
+                        <span className="text-[10px] font-bold text-amber-800 dark:text-amber-300 font-mono shrink-0 ml-2 bg-amber-200/60 dark:bg-amber-900/50 px-1.5 py-0.5 rounded">
+                          [Enter]
+                        </span>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Footer Navigation Bar */}
+            <div className="p-3 bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 font-mono">
+              <span>{modalFilteredClients.length} cliente{modalFilteredClients.length === 1 ? '' : 's'}</span>
+              <div className="flex items-center gap-3">
+                <span><kbd className="px-1 py-0.5 rounded bg-slate-200 dark:bg-slate-800">↑</kbd> <kbd className="px-1 py-0.5 rounded bg-slate-200 dark:bg-slate-800">↓</kbd> Navegar</span>
+                <span><kbd className="px-1 py-0.5 rounded bg-slate-200 dark:bg-slate-800">Enter</kbd> Seleccionar</span>
+                <span><kbd className="px-1 py-0.5 rounded bg-slate-200 dark:bg-slate-800">Esc</kbd> Salir</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

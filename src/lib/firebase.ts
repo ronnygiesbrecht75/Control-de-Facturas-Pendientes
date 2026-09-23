@@ -8,7 +8,9 @@ import {
   getFirestore, 
   collection, 
   doc, 
+  getDoc,
   setDoc, 
+  updateDoc,
   deleteDoc, 
   onSnapshot, 
   getDocs,
@@ -16,11 +18,10 @@ import {
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+export const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
-export const db = firebaseConfig.firestoreDatabaseId 
-  ? getFirestore(app, firebaseConfig.firestoreDatabaseId)
-  : getFirestore(app);
+const dbId = (firebaseConfig as any).firestoreDatabaseId;
+export const db = dbId ? getFirestore(app, dbId) : getFirestore(app);
 
 // Enable offline persistence for seamless PC & Mobile experience
 try {
@@ -35,4 +36,4 @@ try {
   // Ignore error
 }
 
-export { collection, doc, setDoc, deleteDoc, onSnapshot, getDocs };
+export { collection, doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot, getDocs };

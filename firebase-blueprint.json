@@ -42,6 +42,21 @@
         "username": { "type": "string" },
         "passwordHash": { "type": "string" }
       }
+    },
+    "licenses": {
+      "title": "Licenses",
+      "description": "Software license validation and activation keys",
+      "properties": {
+        "key": { "type": "string" },
+        "assignedTo": { "type": "string" },
+        "active": { "type": "boolean" },
+        "maxDevices": { "type": "number" },
+        "activatedDevices": { "type": "array" },
+        "createdAt": { "type": "string" },
+        "expiresAt": { "type": "string" },
+        "notes": { "type": "string" }
+      },
+      "required": ["key", "assignedTo", "active"]
     }
   }
 }

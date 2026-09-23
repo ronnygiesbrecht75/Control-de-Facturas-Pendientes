@@ -27,10 +27,6 @@ import {
   initialUsers,
   allPermissionsTrue
 } from './utils/initialUsers';
-import { 
-  exportInvoicesToCSV, 
-  exportBackup 
-} from './utils/exportHelpers';
 
 import { 
   subscribeInvoices, 
@@ -40,12 +36,18 @@ import {
   subscribeClients,
   syncClientToCloud,
   removeClientFromCloud,
+  removeAllClientsFromCloud,
   subscribeSettings,
   syncSettingsToCloud,
   subscribeUsers,
   syncUserToCloud,
-  removeUserFromCloud
+  removeUserFromCloud,
+  validateLicenseInFirebase,
+  subscribeToLicense,
+  saveLicenseToCloud
 } from './lib/syncService';
+import { AppLicense } from './types';
+import LicenseModal from './components/LicenseModal';
 import { Capacitor } from '@capacitor/core';
 import { StatusBar, Style } from '@capacitor/status-bar';
 
@@ -59,6 +61,8 @@ import RegistrarPagos from './components/RegistrarPagos';
 import Clientes from './components/Clientes';
 import Ajustes from './components/Ajustes';
 import CobroMovilRepartidor from './components/CobroMovilRepartidor';
+import BackupModal from './components/BackupModal';
+import ExportSummaryModal from './components/ExportSummaryModal';
 import UpdateNotificationToast from './components/UpdateNotificationToast';
 import { getUpdateConfig, checkForAppUpdates, UpdateInfo, CURRENT_APP_VERSION } from './utils/autoUpdater';
 
@@ -87,6 +91,26 @@ import {
   User
 } from 'lucide-react';
 
+// Helper to guarantee every client has an automatic sequential integer code starting from 1
+const normalizeClientsWithCodes = (rawList: Client[]): Client[] => {
+  if (!rawList || !Array.isArray(rawList)) return [];
+  let maxCode = 0;
+  rawList.forEach((c) => {
+    if (typeof c.code === 'number' && c.code > maxCode) {
+      maxCode = c.code;
+    }
+  });
+
+  let nextCode = maxCode > 0 ? maxCode + 1 : 1;
+  return rawList.map((c, idx) => {
+    if (typeof c.code === 'number' && c.code > 0) {
+      return c;
+    }
+    const assigned = maxCode > 0 ? nextCode++ : idx + 1;
+    return { ...c, code: assigned };
+  });
+};
+
 export default function App() {
   // --- STATE PERSISTENCE CLIENT-SIDE ---
   const [invoices, setInvoices] = useState<Invoice[]>(() => {
@@ -103,14 +127,19 @@ export default function App() {
 
   const [clients, setClients] = useState<Client[]>(() => {
     const saved = localStorage.getItem('pagos_app_clients');
-    if (saved) {
+    if (saved !== null) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        return normalizeClientsWithCodes(parsed);
       } catch (e) {
         console.error('Error loading clients from localStorage, falling back.', e);
       }
     }
-    return initialClients;
+    const isWiped = localStorage.getItem('pagos_app_clients_cleared');
+    if (isWiped === 'true') {
+      return [];
+    }
+    return normalizeClientsWithCodes(initialClients);
   });
 
   const [settings, setSettings] = useState<UserSettings>(() => {
@@ -181,11 +210,82 @@ export default function App() {
   // Modal overviews
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [backupModalOpen, setBackupModalOpen] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [importNotice, setImportNotice] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
 
   // Automatic Updater state
   const [availableUpdate, setAvailableUpdate] = useState<UpdateInfo | null>(null);
+
+  // License Verification State
+  const [licenseKey, setLicenseKey] = useState<string>(() => {
+    return localStorage.getItem('pagos_app_license_key') || '';
+  });
+  const [isLicenseActive, setIsLicenseActive] = useState<boolean>(() => {
+    const saved = localStorage.getItem('pagos_app_license_verified');
+    return saved === 'true';
+  });
+  const [licenseData, setLicenseData] = useState<AppLicense | null>(() => {
+    const saved = localStorage.getItem('pagos_app_license_data');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) {}
+    }
+    return null;
+  });
+
+  // Verify license against Firebase on startup and listen for real-time remote revocations
+  useEffect(() => {
+    if (!licenseKey) {
+      setIsLicenseActive(false);
+      localStorage.setItem('pagos_app_license_verified', 'false');
+      return;
+    }
+
+    let isMounted = true;
+
+    // Direct verification against Firestore
+    validateLicenseInFirebase(licenseKey).then((res) => {
+      if (!isMounted) return;
+      if (res.valid && res.license) {
+        setIsLicenseActive(true);
+        setLicenseData(res.license);
+        localStorage.setItem('pagos_app_license_verified', 'true');
+        localStorage.setItem('pagos_app_license_data', JSON.stringify(res.license));
+      } else {
+        setIsLicenseActive(false);
+        localStorage.setItem('pagos_app_license_verified', 'false');
+      }
+    }).catch(() => {
+      // If offline, maintain previous valid state if available
+      const wasVerified = localStorage.getItem('pagos_app_license_verified') === 'true';
+      if (isMounted) setIsLicenseActive(wasVerified);
+    });
+
+    // Listen in real-time in case the admin suspends/cancels this license key remotely
+    const unsubscribe = subscribeToLicense(licenseKey, (updatedLicense) => {
+      if (!isMounted) return;
+      if (!updatedLicense || updatedLicense.active === false) {
+        setIsLicenseActive(false);
+        localStorage.setItem('pagos_app_license_verified', 'false');
+      } else {
+        setIsLicenseActive(true);
+        setLicenseData(updatedLicense);
+        localStorage.setItem('pagos_app_license_verified', 'true');
+        localStorage.setItem('pagos_app_license_data', JSON.stringify(updatedLicense));
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
+  }, [licenseKey]);
+
+  const handleLicenseActivated = (license: AppLicense) => {
+    setLicenseKey(license.key);
+    setLicenseData(license);
+    setIsLicenseActive(true);
+    localStorage.setItem('pagos_app_license_key', license.key);
+    localStorage.setItem('pagos_app_license_verified', 'true');
+    localStorage.setItem('pagos_app_license_data', JSON.stringify(license));
+  };
 
   // Auto-check for updates on app launch if enabled
   useEffect(() => {
@@ -260,19 +360,15 @@ export default function App() {
   // --- FIRESTORE REALTIME SYNC (PC ↔ MOBILE CLOUD DATABASE) ---
   useEffect(() => {
     const unsubInvoices = subscribeInvoices((cloudInvoices) => {
-      if (cloudInvoices && cloudInvoices.length > 0) {
+      if (cloudInvoices) {
         setInvoices(cloudInvoices);
-      } else {
-        // Seed cloud database on first run if empty
-        initialInvoices.forEach((inv) => syncInvoiceToCloud(inv));
       }
     });
 
     const unsubClients = subscribeClients((cloudClients) => {
-      if (cloudClients && cloudClients.length > 0) {
-        setClients(cloudClients);
-      } else {
-        initialClients.forEach((c) => syncClientToCloud(c));
+      if (cloudClients) {
+        const normalized = normalizeClientsWithCodes(cloudClients);
+        setClients(normalized);
       }
     });
 
@@ -288,6 +384,17 @@ export default function App() {
       } else {
         initialUsers.forEach((u) => syncUserToCloud(u));
       }
+    });
+
+    // Ensure the default business license exists in Firestore
+    saveLicenseToCloud({
+      key: 'REMIX-2026-WALTER-PY',
+      assignedTo: 'Comercial Walter',
+      active: true,
+      maxDevices: 15,
+      createdAt: '2026-01-01',
+      expiresAt: 'permanente',
+      notes: 'Licencia principal de producción para computadoras y cobro móvil'
     });
 
     return () => {
@@ -358,14 +465,21 @@ export default function App() {
   // --- ACTIONS ---
   
   // Clientes Tab Actions
-  const handleAddClient = (name: string): boolean | string => {
-    const exists = clients.some(c => c.name.trim().toLowerCase() === name.trim().toLowerCase());
+  const handleAddClient = (name: string, ruc?: string): boolean | string => {
+    const cleanName = name.trim();
+    const cleanRuc = ruc?.trim() || undefined;
+    const exists = clients.some(c => c.name.trim().toLowerCase() === cleanName.toLowerCase());
     if (exists) {
       return 'El cliente ya se encuentra registrado.';
     }
+    // Generate next automatic sequential code starting from 1
+    const maxCode = clients.reduce((max, c) => Math.max(max, typeof c.code === 'number' ? c.code : 0), 0);
+    const newCode = maxCode + 1;
     const newClient: Client = {
       id: `client-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      name: name.trim(),
+      name: cleanName,
+      code: newCode,
+      ruc: cleanRuc,
       createdAt: systemDate
     };
     setClients(prev => [newClient, ...prev]);
@@ -378,23 +492,40 @@ export default function App() {
     removeClientFromCloud(id);
   };
 
-  const handleClearAllInvoices = () => {
+  const handleClearAllInvoices = async () => {
     setInvoices([]);
-    localStorage.removeItem('pagos_app_invoices');
-    removeAllInvoicesFromCloud();
+    localStorage.setItem('pagos_app_invoices', JSON.stringify([]));
+    await removeAllInvoicesFromCloud();
   };
 
-  const handleResetApp = () => {
-    localStorage.removeItem('pagos_app_invoices');
-    localStorage.removeItem('pagos_app_clients');
-    localStorage.removeItem('pagos_app_settings');
-    removeAllInvoicesFromCloud();
+  const handleClearAllClients = async () => {
+    setClients([]);
+    localStorage.setItem('pagos_app_clients', JSON.stringify([]));
+    localStorage.setItem('pagos_app_clients_cleared', 'true');
+    await removeAllClientsFromCloud();
+  };
+
+  const handleLoadDemoClients = async () => {
+    const normalized = normalizeClientsWithCodes(initialClients);
+    setClients(normalized);
+    localStorage.setItem('pagos_app_clients', JSON.stringify(normalized));
+    localStorage.removeItem('pagos_app_clients_cleared');
+    await Promise.all(normalized.map((c) => syncClientToCloud(c)));
+  };
+
+  const handleResetApp = async () => {
     setInvoices([]);
-    setClients(initialClients);
+    setClients([]);
     setSettings(defaultSettings);
-    initialInvoices.forEach((inv) => syncInvoiceToCloud(inv));
-    initialClients.forEach((c) => syncClientToCloud(c));
-    syncSettingsToCloud(defaultSettings);
+    localStorage.setItem('pagos_app_invoices', JSON.stringify([]));
+    localStorage.setItem('pagos_app_clients', JSON.stringify([]));
+    localStorage.setItem('pagos_app_clients_cleared', 'true');
+    localStorage.setItem('pagos_app_settings', JSON.stringify(defaultSettings));
+    await Promise.all([
+      removeAllInvoicesFromCloud(),
+      removeAllClientsFromCloud(),
+      syncSettingsToCloud(defaultSettings)
+    ]);
   };
   
   // Tab 1: Registrar nueva factura
@@ -528,62 +659,17 @@ export default function App() {
     });
   };
 
-  // Import local database backup from JSON file
-  const handleImportBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
+  // 1. Mandatory software license validation - blocks all access if not activated
+  if (!isLicenseActive) {
+    return (
+      <LicenseModal
+        initialKey={licenseKey}
+        onLicenseActivated={handleLicenseActivated}
+      />
+    );
+  }
 
-    const file = files[0];
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const payload = JSON.parse(event.target?.result as string);
-        if (payload.version && Array.isArray(payload.invoices)) {
-          setInvoices(payload.invoices);
-          if (payload.settings) {
-            setSettings(payload.settings);
-          }
-          setImportNotice({ type: 'success', msg: '¡Copia de seguridad restaurada exitosamente!' });
-          setTimeout(() => {
-            setImportNotice(null);
-            setBackupModalOpen(false);
-          }, 3000);
-        } else {
-          setImportNotice({ type: 'error', msg: 'Formato de archivo inválido. Revise su respaldo.' });
-        }
-      } catch (err) {
-        setImportNotice({ type: 'error', msg: 'Error al interpretar el JSON. Archivo dañado.' });
-      }
-    };
-    reader.readAsText(file);
-  };
-
-  // --- CSV TRIGGER CONVERTERS FOR MODAL EXPORTS ---
-  const handleExportTabSummary = (tabOption: number) => {
-    if (tabOption === 2) {
-      // Tab 2 - Facturas a vencer y vencidas (category = 'Facturas' are unpaid)
-      const targetList = invoices.filter(i => i.category === 'Facturas' && !i.paid);
-      exportInvoicesToCSV(targetList, 'Resumen_Facturas_Pendientes_P2', systemDate);
-    } else if (tabOption === 3) {
-      // Tab 3 - Planilla de Facturas
-      const targetList = invoices.filter(i => i.category === 'Facturas');
-      exportInvoicesToCSV(targetList, 'Planilla_Facturas_Generales_P3', systemDate);
-    } else if (tabOption === 4) {
-      // Tab 4 - Otras Facturas
-      const targetList = invoices.filter(i => i.category === 'Otras');
-      exportInvoicesToCSV(targetList, 'Planilla_Otras_Facturas_P4', systemDate);
-    } else if (tabOption === 5) {
-      // Tab 5 - Facturas Cristian
-      const targetList = invoices.filter(i => i.category === 'Cristian');
-      exportInvoicesToCSV(targetList, 'Planilla_Facturas_Cristian_P5', systemDate);
-    } else {
-      // All
-      exportInvoicesToCSV(invoices, 'Control_De_Pagos_Base_Completa', systemDate);
-    }
-    setExportModalOpen(false);
-  };
-
-  // Render LockScreen wrapper if security is active and we are not verified yet
+  // 2. Render LockScreen wrapper if security is active and we are not verified yet
   if (settings.passwordEnabled && !isAuthenticated) {
     return (
       <LockScreen 
@@ -1081,6 +1167,7 @@ export default function App() {
               <FacturasPendientes 
                 invoices={invoices} 
                 systemDate={systemDate} 
+                clients={clients}
               />
             )}
 
@@ -1125,12 +1212,14 @@ export default function App() {
                 invoices={invoices}
                 onUpdatePayment={handleUpdatePayment}
                 systemDate={systemDate}
+                clients={clients}
               />
             )}
 
             {currentTab === 'cobro-movil' && (
               <CobroMovilRepartidor
                 invoices={invoices}
+                clients={clients}
                 onRegisterMobilePayment={handleRegisterMobilePayment}
                 systemDate={systemDate}
               />
@@ -1154,6 +1243,17 @@ export default function App() {
                 onDeleteUser={handleDeleteUser}
                 onClearAllInvoices={handleClearAllInvoices}
                 onResetApp={handleResetApp}
+                licenseData={licenseData}
+                onOpenBackupModal={() => setBackupModalOpen(true)}
+                onOpenExportModal={() => setExportModalOpen(true)}
+                onDeactivateLicense={() => {
+                  localStorage.removeItem('pagos_app_license_key');
+                  localStorage.removeItem('pagos_app_license_verified');
+                  localStorage.removeItem('pagos_app_license_data');
+                  setLicenseKey('');
+                  setLicenseData(null);
+                  setIsLicenseActive(false);
+                }}
               />
             )}
           </main>
@@ -1170,145 +1270,40 @@ export default function App() {
         </footer>
       </div>
 
-      {/* --- EXPORT MODAL --- */}
-      {exportModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-xl border border-slate-350 dark:border-slate-700 animate-fade-in text-slate-900 dark:text-slate-100">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700 mb-4">
-              <h3 className="font-bold text-base font-display">Exportar Resumen Reporte</h3>
-              <button 
-                onClick={() => setExportModalOpen(false)} 
-                className="p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-650 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      {/* --- EXPORT MODAL (Descarga Local + Google Drive) --- */}
+      <ExportSummaryModal
+        isOpen={exportModalOpen}
+        onClose={() => setExportModalOpen(false)}
+        invoices={invoices}
+        systemDate={systemDate}
+      />
 
-            <div className="space-y-3">
-              <p className="text-xs text-slate-550 dark:text-slate-400">
-                Seleccione la pestaña de datos que desea exportar en formato compatible con planillas como Excel (.csv con separadores españoles).
-              </p>
-
-              <div className="grid grid-cols-1 gap-2 pt-2">
-                <button
-                  id="export-tab-2-btn"
-                  onClick={() => handleExportTabSummary(2)}
-                  className="flex items-center justify-between p-3 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-900 text-left cursor-pointer"
-                >
-                  <span className="text-slate-700 dark:text-slate-250">Opción 1: Reporte de Vencimientos (Pendiente)</span>
-                  <ArrowRight className="w-4 h-4 text-primary-gold" />
-                </button>
-                <button
-                  id="export-tab-3-btn"
-                  onClick={() => handleExportTabSummary(3)}
-                  className="flex items-center justify-between p-3 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-900 text-left cursor-pointer"
-                >
-                  <span className="text-slate-700 dark:text-slate-250">Opción 2: Planilla General de Facturas Registradas</span>
-                  <ArrowRight className="w-4 h-4 text-primary-gold" />
-                </button>
-                <button
-                  id="export-tab-4-btn"
-                  onClick={() => handleExportTabSummary(4)}
-                  className="flex items-center justify-between p-3 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-900 text-left cursor-pointer"
-                >
-                  <span className="text-slate-700 dark:text-slate-250">Opción 3: Planilla de Otras Facturas</span>
-                  <ArrowRight className="w-4 h-4 text-primary-gold" />
-                </button>
-                <button
-                  id="export-tab-5-btn"
-                  onClick={() => handleExportTabSummary(5)}
-                  className="flex items-center justify-between p-3 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-900 text-left cursor-pointer"
-                >
-                  <span className="text-slate-700 dark:text-slate-250">Opción 4: Planilla de Facturas de Cristian</span>
-                  <ArrowRight className="w-4 h-4 text-primary-gold" />
-                </button>
-                <button
-                  id="export-tab-full-btn"
-                  onClick={() => handleExportTabSummary(10)}
-                  className="flex items-center justify-between p-3 bg-slate-900 hover:bg-slate-950 dark:bg-primary-gold text-white dark:text-slate-950 rounded-lg text-xs font-bold text-left cursor-pointer"
-                >
-                  <span>Exportar Base de Datos Completa (Todas juntas)</span>
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* --- BACKUP MODAL --- */}
-      {backupModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-xl border border-slate-350 dark:border-slate-700 animate-fade-in text-slate-900 dark:text-slate-100">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700 mb-4">
-              <div className="flex items-center gap-2">
-                <Database className="w-5 h-5 text-primary-gold" />
-                <h3 className="font-bold text-base font-display">Copia de Seguridad y Restauración</h3>
-              </div>
-              <button 
-                onClick={() => setBackupModalOpen(false)} 
-                className="p-1 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-650 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="space-y-5">
-              {importNotice && (
-                <div className={`p-3 text-xs rounded-lg border ${
-                  importNotice.type === 'success'
-                    ? 'bg-emerald-50 dark:bg-emerald-950/20 text-emerald-800 dark:text-emerald-400 border-emerald-200'
-                    : 'bg-rose-50 dark:bg-rose-950/20 text-rose-800 dark:text-rose-400 border-rose-200'
-                }`}>
-                  {importNotice.msg}
-                </div>
-              )}
-
-              {/* Action 1: Export Backup file */}
-              <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-xl space-y-2 border border-slate-205 dark:border-slate-800">
-                <h4 className="font-bold text-xs">1. Descargar copia de seguridad local</h4>
-                <p className="text-[11px] text-slate-500">
-                  Descarga un archivo JSON cifrado con todas las facturas y claves de contraseña configuradas para guardarlo en un pendrive o disco duro.
-                </p>
-                <button
-                  id="backup-download-btn"
-                  onClick={() => exportBackup(invoices, settings)}
-                  className="w-full py-2 bg-slate-950 dark:bg-primary-gold text-white dark:text-slate-950 hover:bg-slate-950 font-semibold rounded-lg text-xs flex items-center justify-center gap-1.5 cursor-pointer mt-1"
-                >
-                  <Download className="w-4 h-4" />
-                  Descargar Respaldo (.json)
-                </button>
-              </div>
-
-              {/* Action 2: Import Backup file */}
-              <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-xl space-y-2 border border-slate-205 dark:border-slate-800">
-                <h4 className="font-bold text-xs">2. Restaurar Copia de Seguridad</h4>
-                <p className="text-[11px] text-slate-500">
-                  Suba un archivo previamente descargado para reemplazar los datos del sistema con su copia guardada.
-                </p>
-                
-                <input
-                  id="backup-import-file-selector"
-                  type="file"
-                  accept=".json"
-                  ref={fileInputRef}
-                  onChange={handleImportBackup}
-                  className="hidden"
-                />
-
-                <button
-                  id="backup-upload-trigger-btn"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="w-full py-2 border border-dashed border-slate-350 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300 hover:bg-slate-100 font-semibold rounded-lg text-xs flex items-center justify-center gap-1.5 cursor-pointer mt-1"
-                >
-                  <FolderOpen className="w-4 h-4 text-primary-gold" />
-                  Seleccionar Archivo de Resguardo JSON
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* --- BACKUP MODAL (Google Drive + Archivo Local) --- */}
+      <BackupModal
+        isOpen={backupModalOpen}
+        onClose={() => setBackupModalOpen(false)}
+        invoices={invoices}
+        clients={clients}
+        settings={settings}
+        systemDate={systemDate}
+        onRestoreBackup={(payload) => {
+          if (payload.invoices && Array.isArray(payload.invoices)) {
+            setInvoices(payload.invoices);
+            payload.invoices.forEach(inv => syncInvoiceToCloud(inv));
+          }
+          if (payload.clients && Array.isArray(payload.clients)) {
+            setClients(payload.clients);
+            payload.clients.forEach(c => syncClientToCloud(c));
+          }
+          if (payload.settings) {
+            setSettings(prev => {
+              const updated = { ...prev, ...payload.settings };
+              syncSettingsToCloud(updated);
+              return updated;
+            });
+          }
+        }}
+      />
 
       {/* Floating Update Notification Toast */}
       {availableUpdate && availableUpdate.hasUpdate && (

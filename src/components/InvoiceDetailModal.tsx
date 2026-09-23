@@ -4,7 +4,7 @@
  */
 
 import React from 'react';
-import { Invoice } from '../types';
+import { Invoice, Client } from '../types';
 import { 
   formatPYG, 
   formatDateDMY, 
@@ -38,6 +38,7 @@ interface InvoiceDetailModalProps {
   isOpen: boolean;
   invoice: Invoice | null;
   systemDate: string;
+  clients?: Client[];
   onClose: () => void;
 }
 
@@ -45,9 +46,17 @@ export default function InvoiceDetailModal({
   isOpen,
   invoice,
   systemDate,
+  clients = [],
   onClose
 }: InvoiceDetailModalProps) {
   if (!isOpen || !invoice) return null;
+
+  const resolvedRuc = invoice.clientRuc ||
+    clients?.find(
+      (c) =>
+        c.name.trim().toLowerCase() === invoice.clientName.trim().toLowerCase() ||
+        (typeof invoice.clientCode === 'number' && c.code === invoice.clientCode)
+    )?.ruc;
 
   const isRemision = invoice.documentType === 'remision';
   const formattedNumber = isRemision 
@@ -100,7 +109,7 @@ export default function InvoiceDetailModal({
   );
 
   const handleDownloadPDF = () => {
-    generateSingleInvoiceReceiptPDF(invoice, systemDate);
+    generateSingleInvoiceReceiptPDF(invoice, systemDate, 'COMERCIAL WALTER', resolvedRuc);
   };
 
   return (
@@ -218,17 +227,33 @@ export default function InvoiceDetailModal({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-white dark:bg-slate-900/40 p-4 rounded-xl border border-slate-200 dark:border-slate-700 text-xs">
               
-              {/* Cliente */}
-              <div className="sm:col-span-2 flex items-start gap-2.5">
-                <div className="p-2 rounded-lg bg-amber-500/10 text-amber-600 mt-0.5">
-                  <User className="w-4 h-4" />
+              {/* Cliente y RUC */}
+              <div className="sm:col-span-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-800">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="p-2 rounded-lg bg-amber-500/10 text-amber-600 shrink-0">
+                    <User className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-slate-400 text-[11px] block">Cliente / Razón Social</span>
+                    <span className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate block">
+                      {invoice.clientName}
+                    </span>
+                  </div>
                 </div>
-                <div>
-                  <span className="text-slate-400 text-[11px] block">Nombre del Cliente</span>
-                  <span className="text-sm font-bold text-slate-900 dark:text-slate-100">
-                    {invoice.clientName}
-                  </span>
-                </div>
+
+                {resolvedRuc ? (
+                  <div className="sm:text-right bg-white dark:bg-slate-800 px-3 py-1.5 rounded-lg border border-amber-300 dark:border-amber-700/60 shrink-0 shadow-xs">
+                    <span className="text-slate-400 text-[10px] block font-bold uppercase tracking-wider">RUC / C.I.</span>
+                    <span className="font-mono text-xs font-black text-amber-600 dark:text-amber-400">
+                      {resolvedRuc}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="sm:text-right text-slate-400 text-xs shrink-0">
+                    <span className="text-[10px] block font-bold uppercase tracking-wider text-slate-400">RUC / C.I.</span>
+                    <span className="font-mono text-xs italic text-slate-400">Sin RUC</span>
+                  </div>
+                )}
               </div>
 
               {/* Número Completo */}

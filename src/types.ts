@@ -33,6 +33,8 @@ export interface Invoice {
   documentType?: 'factura' | 'remision';
   remisionNumero?: string; // Número único de remisión (p. ej. "10543")
   clientName: string;
+  clientCode?: number;     // Código numérico secuencial del cliente
+  clientRuc?: string;      // RUC o C.I. del cliente (Opcional, e.g. "80003000-1")
   sucursal: string; // e.g. "001"
   caja: string;     // e.g. "009"
   numero: string;   // e.g. "0006493" o número de remisión
@@ -98,6 +100,25 @@ export interface BackupData {
 export interface Client {
   id: string;
   name: string;
+  code?: number; // Código numérico secuencial del cliente (1, 2, 3...)
+  ruc?: string;  // RUC o C.I. del cliente (Opcional, e.g. "80003000-1")
   createdAt: string;
+}
+
+export interface AppLicense {
+  key: string;              // Clave alfanumérica formateada, ej: REMIX-2026-X9A7-B8C2
+  assignedTo: string;       // Nombre de cliente o negocio
+  active: boolean;          // Si la licencia está habilitada
+  maxDevices?: number;      // Máximo de dispositivos permitidos (opcional)
+  activatedDevices?: string[]; // IDs o nombres de dispositivos registrados
+  createdAt?: string;       // Fecha de emisión
+  expiresAt?: string;       // Fecha de vencimiento (opcional o 'permanente')
+  notes?: string;           // Observaciones
+}
+
+export interface LicenseValidationResult {
+  valid: boolean;
+  message: string;
+  license?: AppLicense;
 }
 

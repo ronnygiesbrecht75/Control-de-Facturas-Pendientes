@@ -6,7 +6,8 @@
 import React, { useState, useEffect } from 'react';
 import { Invoice, InvoiceCategory, PaymentMethod, Client } from '../types';
 import { formatPYG, formatInvoiceNumber } from '../utils/mockData';
-import { Edit3, X, Save, Calendar, DollarSign, Building, FileText, CheckCircle2 } from 'lucide-react';
+import { Edit3, X, Save, Calendar, DollarSign, Building, FileText, CheckCircle2, Search, Loader2 } from 'lucide-react';
+import { lookupRucParaguay, formatRuc } from '../utils/rucService';
 
 interface EditInvoiceModalProps {
   isOpen: boolean;
@@ -30,6 +31,8 @@ export default function EditInvoiceModal({
   // Form states
   const [category, setCategory] = useState<InvoiceCategory>(invoice.category);
   const [clientName, setClientName] = useState(invoice.clientName);
+  const [clientRuc, setClientRuc] = useState(invoice.clientRuc || '');
+  const [isSearchingRuc, setIsSearchingRuc] = useState(false);
   const [sucursal, setSucursal] = useState(invoice.sucursal);
   const [caja, setCaja] = useState(invoice.caja);
   const [numero, setNumero] = useState(invoice.numero);
@@ -56,6 +59,7 @@ export default function EditInvoiceModal({
     if (invoice) {
       setCategory(invoice.category);
       setClientName(invoice.clientName);
+      setClientRuc(invoice.clientRuc || '');
       setSucursal(invoice.sucursal);
       setCaja(invoice.caja);
       setNumero(invoice.numero);
@@ -102,6 +106,7 @@ export default function EditInvoiceModal({
       documentType: invoice.documentType,
       remisionNumero: isRemision ? cleanNumero : invoice.remisionNumero,
       clientName: clientName.trim(),
+      clientRuc: clientRuc.trim() ? formatRuc(clientRuc.trim()) : undefined,
       sucursal: cleanSucursal,
       caja: cleanCaja,
       numero: cleanNumero,
@@ -206,7 +211,14 @@ export default function EditInvoiceModal({
                 type="text"
                 list="edit-clients-list"
                 value={clientName}
-                onChange={(e) => setClientName(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setClientName(val);
+                  const matched = clients.find((c) => c.name.toLowerCase() === val.toLowerCase());
+                  if (matched && matched.ruc) {
+                    setClientRuc(matched.ruc);
+                  }
+                }}
                 placeholder="Nombre del cliente"
                 className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-medium text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500"
                 required
@@ -216,6 +228,44 @@ export default function EditInvoiceModal({
                   <option key={c.id} value={c.name} />
                 ))}
               </datalist>
+            </div>
+
+            {/* RUC del Cliente */}
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                RUC / C.I. del Cliente <span className="text-[11px] font-normal text-slate-400">(Opcional)</span>
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={clientRuc}
+                  onChange={(e) => setClientRuc(e.target.value)}
+                  placeholder="Ej. 80003000-1"
+                  className="flex-1 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-mono font-bold text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!clientRuc.trim()) return;
+                    setIsSearchingRuc(true);
+                    try {
+                      const res = await lookupRucParaguay(clientRuc.trim());
+                      if (res.success && res.razonSocial) {
+                        setClientName(res.razonSocial);
+                        if (res.ruc) setClientRuc(res.ruc);
+                      }
+                    } finally {
+                      setIsSearchingRuc(false);
+                    }
+                  }}
+                  disabled={isSearchingRuc}
+                  className="px-3 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50 shrink-0"
+                  title="Consultar RUC en el padrón SET/DNIT"
+                >
+                  {isSearchingRuc ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
+                  <span>SET/DNIT</span>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -237,7 +287,7 @@ export default function EditInvoiceModal({
           ) : (
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                Número de Factura (Sucursal - Caja - Número)
+                Número de Factura
               </label>
               <div className="flex items-center gap-2">
                 <input

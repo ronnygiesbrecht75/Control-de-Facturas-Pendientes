@@ -26,10 +26,10 @@
 
 :root {
   --slate-50: #ffffff;      /* pure white app background and card panels as requested */
-  --slate-100: #fafafa;     /* pristine neutral gray tags/badges */
-  --slate-200: #f4f4f5;     /* sleek light-gray border */
-  --slate-300: #e4e4e7;     /* mid border gray */
-  --slate-400: #a1a1aa;     /* neutral silver grey for placeholders */
+  --slate-100: #f1f5f9;     /* neutral gray tags/badges and subtle dividers */
+  --slate-200: #cbd5e1;     /* well-defined, crisp cut lines and borders across all panels */
+  --slate-300: #94a3b8;     /* distinct border for inputs and interactive controls */
+  --slate-400: #64748b;     /* neutral silver grey for placeholders and icons */
   --slate-500: #71717a;     /* body/secondary label gray */
   --slate-600: #52525b;     /* neutral content text */
   --slate-700: #3f3f46;     /* deep gray */
@@ -53,8 +53,8 @@ body {
   --slate-300: #e4e4e7;     /* secondary light text details */
   --slate-400: #a1a1aa;     /* grey labels / placeholder text */
   --slate-500: #e4e4e7;     /* lighter slate text details */
-  --slate-600: #424248;     
-  --slate-700: #424248;     /* visible borders in dark mode - lighter gray, no blue */
+  --slate-600: #4a4a52;     
+  --slate-700: #52525a;     /* visible borders in dark mode - clearer cut lines, no blue */
   --slate-800: #2a2a2e;     /* card backgrounds (cozy, readable lighter "gris negro" - 0% blue!) */
   --slate-900: #1c1c1f;     /* outer deep app background (refined elegant graphite/charcoal) */
   --slate-950: #151517;     /* input panel bases */

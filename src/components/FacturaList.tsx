@@ -4,6 +4,7 @@
  */
 
 import React, { useState } from 'react';
+import { List, RowComponentProps } from 'react-window';
 import { Invoice, InvoiceCategory, PaymentStatus, Client } from '../types';
 import { 
   formatPYG, 
@@ -35,6 +36,7 @@ import {
 import ConfirmModal from './ConfirmModal';
 import EditInvoiceModal from './EditInvoiceModal';
 import InvoiceDetailModal from './InvoiceDetailModal';
+import DateInputWithEnter, { DateInputHandle } from './DateInputWithEnter';
 import { generateInvoicesPDF } from '../utils/pdfExport';
 
 export type DocumentTypeFilter = 'all' | 'facturas' | 'remisiones';
@@ -55,6 +57,172 @@ const sortOptions = [
   { value: 'client-asc', label: 'Cliente: A a Z', shortLabel: 'Cliente (A-Z)' },
   { value: 'client-desc', label: 'Cliente: Z a A', shortLabel: 'Cliente (Z-A)' },
 ] as const;
+
+type FacturaRowProps = {
+  items: Invoice[];
+  systemDate: string;
+  onTogglePaid: (id: string) => void;
+  onView: (inv: Invoice) => void;
+  onEdit?: (inv: Invoice) => void;
+  onDelete: (inv: Invoice) => void;
+};
+
+const FacturaRow = ({
+  index,
+  style,
+  items,
+  systemDate,
+  onTogglePaid,
+  onView,
+  onEdit,
+  onDelete
+}: RowComponentProps<FacturaRowProps>) => {
+  const inv = items[index];
+  const dueDateStr = calculateDueDateString(inv.invoiceDate, inv.terms);
+  const status = getInvoiceStatus(inv, systemDate);
+  const daysLeft = getDaysDifference(dueDateStr, systemDate);
+
+  let statusBadge = (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/30 dark:text-amber-400 whitespace-nowrap">
+      A Vencer {daysLeft > 0 ? `(${daysLeft}d)` : '(Hoy)'}
+    </span>
+  );
+  if (status === 'Pagado') {
+    statusBadge = (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400 whitespace-nowrap">
+        Pagado
+      </span>
+    );
+  } else if (status === 'Vencido') {
+    statusBadge = (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 dark:bg-rose-950/30 dark:text-rose-400 whitespace-nowrap">
+        Vencido ({Math.abs(daysLeft)}d)
+      </span>
+    );
+  }
+
+  return (
+    <div
+      style={style}
+      className={`flex items-center box-border min-w-[1050px] border-b border-slate-100 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors duration-150 text-xs ${
+        inv.paid ? 'opacity-80' : ''
+      }`}
+    >
+      {/* Cliente */}
+      <div className="py-1 px-3 flex-1 min-w-[170px] font-semibold text-slate-800 dark:text-slate-100 leading-tight truncate">
+        {inv.clientName}
+      </div>
+
+      {/* N° Factura / Remisión */}
+      <div className="py-1 px-3 w-[150px] min-w-[150px] font-mono font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap tracking-wide text-xs">
+        {inv.documentType === 'remision' ? (
+          <div className="flex items-center gap-1.5">
+            <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700/60 font-sans tracking-wider">
+              REM
+            </span>
+            <span className="font-mono font-bold text-slate-900 dark:text-slate-100">
+              N° {inv.remisionNumero || inv.numero}
+            </span>
+          </div>
+        ) : (
+          formatInvoiceNumber(inv.sucursal, inv.caja, inv.numero)
+        )}
+      </div>
+
+      {/* Monto Facturado */}
+      <div className="py-1 px-3 w-[125px] min-w-[125px] text-right font-mono font-bold text-slate-900 dark:text-slate-100 text-xs whitespace-nowrap">
+        {formatPYG(inv.amount)}
+      </div>
+
+      {/* F. Emisión */}
+      <div className="py-1 px-2.5 w-[90px] min-w-[90px] text-center text-slate-500 font-mono text-[11px] whitespace-nowrap">
+        {formatDateDMY(inv.invoiceDate)}
+      </div>
+
+      {/* Plazo */}
+      <div className="py-1 px-2 w-[60px] min-w-[60px] text-center text-slate-500 font-medium text-xs whitespace-nowrap">
+        {inv.documentType === 'remision' ? (
+          <span className="text-[10px] text-slate-400 font-medium italic">Remisión</span>
+        ) : inv.terms ? (
+          `${inv.terms}d`
+        ) : (
+          '-'
+        )}
+      </div>
+
+      {/* F. Vence */}
+      <div className="py-1 px-2.5 w-[90px] min-w-[90px] text-center font-mono text-[11px] font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">
+        {formatDateDMY(dueDateStr)}
+      </div>
+
+      {/* Estado */}
+      <div className="py-1 px-3 w-[130px] min-w-[130px] text-center whitespace-nowrap">
+        {statusBadge}
+      </div>
+
+      {/* F. Pago & Método */}
+      <div className="py-1 px-3 w-[120px] min-w-[120px] text-right whitespace-nowrap">
+        {inv.paid && inv.paymentDate ? (
+          <div className="leading-tight">
+            <span className="font-semibold text-emerald-600 dark:text-emerald-400 text-[11px] block">
+              {formatDateDMY(inv.paymentDate)}
+            </span>
+            <span className="text-[9px] text-slate-500 dark:text-slate-400 font-mono block truncate">
+              {inv.paymentMethod || 'Efectivo'}
+              {inv.paymentDetails?.bankName ? ` - ${inv.paymentDetails.bankName}` : ''}
+            </span>
+          </div>
+        ) : (
+          <span className="text-slate-400 text-xs">-</span>
+        )}
+      </div>
+
+      {/* ¿Pago? */}
+      <div className="py-1 px-2 w-[55px] min-w-[55px] text-center">
+        <input
+          id={`toggle-paid-${inv.id}`}
+          aria-label={`Marcar pagado a cliente ${inv.clientName}`}
+          type="checkbox"
+          checked={inv.paid}
+          onChange={() => onTogglePaid(inv.id)}
+          className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 accent-emerald-500 cursor-pointer align-middle"
+        />
+      </div>
+
+      {/* Acciones */}
+      <div className="py-1 px-2.5 w-[95px] min-w-[95px] text-center whitespace-nowrap">
+        <div className="flex items-center justify-center gap-1">
+          <button
+            id={`view-btn-${inv.id}`}
+            onClick={() => onView(inv)}
+            className="p-1 bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400 rounded hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors cursor-pointer"
+            title="Ver Detalle y Pagos de Factura"
+          >
+            <Eye className="w-3.5 h-3.5 inline" />
+          </button>
+
+          <button
+            id={`edit-btn-${inv.id}`}
+            onClick={() => onEdit?.(inv)}
+            className="p-1 bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 rounded hover:bg-amber-100 dark:hover:bg-amber-900/50 transition-colors cursor-pointer"
+            title="Editar Factura"
+          >
+            <Edit3 className="w-3.5 h-3.5 inline" />
+          </button>
+
+          <button
+            id={`delete-btn-${inv.id}`}
+            onClick={() => onDelete(inv)}
+            className="p-1 bg-rose-50 text-rose-600 dark:bg-rose-950/20 dark:text-rose-400 rounded hover:bg-rose-100 dark:hover:bg-rose-900/30 transition-colors cursor-pointer"
+            title="Eliminar Factura"
+          >
+            <Trash2 className="w-3.5 h-3.5 inline" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 interface FacturaListProps {
   category: InvoiceCategory;
@@ -79,6 +247,10 @@ export default function FacturaList({
   const [statusFilter, setStatusFilter] = useState<'All' | PaymentStatus>('All');
   const [docTypeFilter, setDocTypeFilter] = useState<DocumentTypeFilter>('all');
   const [sortBy, setSortBy] = useState<SortOption>('num-asc');
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
+  const dateFromRef = React.useRef<DateInputHandle>(null);
+  const dateToRef = React.useRef<DateInputHandle>(null);
   const [pageSize, setPageSize] = useState<number>(25);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [invoiceToDelete, setInvoiceToDelete] = useState<Invoice | null>(null);
@@ -88,7 +260,7 @@ export default function FacturaList({
   // Reset page when search, filter, sort, or page size changes
   React.useEffect(() => {
     setCurrentPage(1);
-  }, [search, statusFilter, docTypeFilter, sortBy, pageSize]);
+  }, [search, statusFilter, docTypeFilter, sortBy, pageSize, startDate, endDate]);
 
   // Filter invoices for this specific tab category AND selected document type
   const categoryInvoices = invoices.filter((inv) => {
@@ -111,7 +283,7 @@ export default function FacturaList({
     .filter((inv) => !inv.paid)
     .reduce((acc, curr) => acc + curr.amount, 0);
 
-  // Filter by search query & selected status
+  // Filter by search query, date range & selected status
   const filteredInvoices = categoryInvoices.filter((inv) => {
     const isRemision = inv.documentType === 'remision';
     const formattedNum = isRemision 
@@ -125,6 +297,11 @@ export default function FacturaList({
       (inv.numero && inv.numero.toLowerCase().includes(search.toLowerCase()));
     
     if (!matchesSearch) return false;
+
+    // Filtro por Fecha Desde / Hasta (emisión)
+    if (startDate && inv.invoiceDate < startDate) return false;
+    if (endDate && inv.invoiceDate > endDate) return false;
+
     if (statusFilter === 'All') return true;
     
     const computedStatus = getInvoiceStatus(inv, systemDate);
@@ -175,7 +352,10 @@ export default function FacturaList({
       categoryFilter: category,
       statusFilter: statusFilter,
       searchFilter: search,
+      startDate: startDate || undefined,
+      endDate: endDate || undefined,
       systemDate: systemDate,
+      clients: clients,
     });
   };
 
@@ -229,121 +409,142 @@ export default function FacturaList({
       {/* Main filter list controls */}
       <div className="bg-white dark:bg-slate-800 rounded-xl shadow-md border border-slate-200 dark:border-slate-700 overflow-hidden">
         
-        {/* Custom Header controls */}
-        <div className="p-4 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 flex flex-col xl:flex-row gap-4 items-center justify-between">
+        {/* Custom Header controls (Ultracompacto en una sola barra integrada) */}
+        <div className="p-2 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 flex flex-wrap items-center justify-between gap-2 text-xs">
           
-          <div className="flex flex-col sm:flex-row gap-3 w-full xl:w-auto flex-1 max-w-2xl">
-            {/* Buscador */}
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-2.5 w-4.5 h-4.5 text-slate-400" />
-              <input
-                id={`search-input-${category}`}
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Buscar por cliente o factura..."
-                className="w-full pl-10 pr-4 py-1.5 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-xs rounded-lg focus:outline-none focus:ring-1 focus:ring-primary-gold text-slate-800 dark:text-slate-100"
+          {/* Buscador */}
+          <div className="relative flex-1 min-w-[190px] max-w-sm">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+            <input
+              id={`search-input-${category}`}
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar por cliente o factura..."
+              className="w-full pl-8 pr-7 py-1 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 text-[11px] rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500 text-slate-800 dark:text-slate-100"
+            />
+            {search && (
+              <button 
+                onClick={() => setSearch('')} 
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                aria-label="Borrar búsqueda"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+
+          {/* Controles de Filtros y Acciones */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            {/* Rango de Fechas: Solo Desde y Hasta con soporte para tecla Enter */}
+            <div className="flex items-center gap-1.5 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-0.5 shadow-xs">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                Desde:
+              </span>
+              <DateInputWithEnter
+                ref={dateFromRef}
+                id={`date-from-${category}`}
+                value={startDate}
+                onChange={setStartDate}
+                onEnterNext={() => dateToRef.current?.focus()}
               />
-              {search && (
-                <button 
-                  onClick={() => setSearch('')} 
-                  className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600"
-                  aria-label="Borrar búsqueda"
+              <span className="text-slate-300 dark:text-slate-600">|</span>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                Hasta:
+              </span>
+              <DateInputWithEnter
+                ref={dateToRef}
+                id={`date-to-${category}`}
+                value={endDate}
+                onChange={setEndDate}
+              />
+              {(startDate || endDate) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStartDate('');
+                    setEndDate('');
+                  }}
+                  title="Quitar fechas"
+                  className="p-0.5 text-slate-400 hover:text-rose-500 rounded cursor-pointer"
                 >
-                  <X className="w-4 h-4" />
+                  <X className="w-3 h-3" />
                 </button>
               )}
             </div>
 
-            {/* Selector de Ordenación (Diseño robusto que no se oculta ni se corta) */}
-            <div className="relative flex items-center gap-1.5 w-full sm:w-auto">
-              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                Ordenar:
-              </span>
-              <div className="relative flex-1 sm:flex-initial">
-                <select
-                  id={`sort-select-${category}`}
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as SortOption)}
-                  className="w-full sm:w-auto appearance-none pl-3 pr-9 py-1.5 bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 text-xs font-bold rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500 shadow-xs cursor-pointer"
-                >
-                  {sortOptions.map((opt) => (
-                    <option key={opt.value} value={opt.value} className="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2.5 text-amber-500">
-                  <ArrowUpDown className="w-3.5 h-3.5" />
-                </div>
+            {/* Selector de Ordenación */}
+            <div className="relative">
+              <select
+                id={`sort-select-${category}`}
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as SortOption)}
+                className="appearance-none pl-2 pr-7 py-1 bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 text-[11px] font-bold rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500 shadow-xs cursor-pointer"
+              >
+                {sortOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value} className="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2 text-amber-500">
+                <ArrowUpDown className="w-3 h-3" />
               </div>
             </div>
 
-            {/* Cuadro con Flecha: Elegir Facturas y Remisiones / Solo Facturas / Solo Remisiones (No aplica para Cristian) */}
+            {/* Selector de Documentos (No aplica para Cristian) */}
             {category !== 'Cristian' && (
-              <div className="relative flex items-center gap-1.5 w-full sm:w-auto">
-                <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap">
-                  Documentos:
-                </span>
-                <div className="relative flex-1 sm:flex-initial">
-                  <select
-                    id={`doc-type-filter-${category}`}
-                    value={docTypeFilter}
-                    onChange={(e) => setDocTypeFilter(e.target.value as DocumentTypeFilter)}
-                    className="w-full sm:w-auto appearance-none pl-3 pr-8 py-1.5 bg-amber-50/50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 border border-amber-300 dark:border-amber-600/50 text-xs font-bold rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-xs cursor-pointer"
-                  >
-                    <option value="all">Facturas y Remisiones</option>
-                    <option value="facturas">Solo Facturas</option>
-                    <option value="remisiones">Solo Remisiones</option>
-                  </select>
-                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2.5 text-amber-600 dark:text-amber-400">
-                    <ChevronDown className="w-4 h-4" />
-                  </div>
+              <div className="relative">
+                <select
+                  id={`doc-type-filter-${category}`}
+                  value={docTypeFilter}
+                  onChange={(e) => setDocTypeFilter(e.target.value as DocumentTypeFilter)}
+                  className="appearance-none pl-2 pr-6 py-1 bg-amber-50/50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 border border-amber-300 dark:border-amber-600/50 text-[11px] font-bold rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-xs cursor-pointer"
+                >
+                  <option value="all">Facturas y Remisiones</option>
+                  <option value="facturas">Solo Facturas</option>
+                  <option value="remisiones">Solo Remisiones</option>
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-1.5 text-amber-600 dark:text-amber-400">
+                  <ChevronDown className="w-3 h-3" />
                 </div>
               </div>
             )}
-          </div>
 
-          {/* Filtro de Estado compacto con flecha y PDF export */}
-          <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-            <div className="flex items-center gap-1.5 w-full sm:w-auto">
-              <span className="text-xs font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                Estado:
-              </span>
-              <div className="relative flex-1 sm:flex-initial">
-                <select
-                  id={`status-filter-${category}`}
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value as any)}
-                  className="w-full sm:w-auto appearance-none pl-2.5 pr-8 py-1.5 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 text-xs font-bold rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-xs cursor-pointer"
-                >
-                  <option value="All">Todos los Estados</option>
-                  <option value="A Vencer">A Vencer</option>
-                  <option value="Vencido">Vencido</option>
-                  <option value="Pagado">Pagado</option>
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2 text-slate-500 dark:text-slate-400">
-                  <ChevronDown className="w-3.5 h-3.5" />
-                </div>
+            {/* Filtro de Estado */}
+            <div className="relative">
+              <select
+                id={`status-filter-${category}`}
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as any)}
+                className="appearance-none pl-2 pr-6 py-1 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 text-[11px] font-bold rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-xs cursor-pointer"
+              >
+                <option value="All">Todos los Estados</option>
+                <option value="A Vencer">A Vencer</option>
+                <option value="Vencido">Vencido</option>
+                <option value="Pagado">Pagado</option>
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-1.5 text-slate-500 dark:text-slate-400">
+                <ChevronDown className="w-3 h-3" />
               </div>
             </div>
 
-            {/* PDF Export Button */}
+            {/* Botón PDF */}
             <button
               type="button"
               id={`export-pdf-btn-${category}`}
               onClick={handleExportPDF}
               title="Descargar o imprimir reporte PDF con la búsqueda/filtros actuales"
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold rounded-lg shadow-sm transition-all cursor-pointer whitespace-nowrap"
+              className="flex items-center gap-1 px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-slate-950 text-[11px] font-bold rounded-lg shadow-xs transition-all cursor-pointer whitespace-nowrap"
             >
-              <FileText className="w-3.5 h-3.5" />
+              <FileText className="w-3 h-3" />
               <span>Hacer PDF ({sortedInvoices.length})</span>
             </button>
           </div>
 
         </div>
 
-        {/* Invoice table list */}
+        {/* Invoice table list virtualized with react-window */}
         <div className="overflow-x-auto">
           {filteredInvoices.length === 0 ? (
             <div className="text-center py-12 px-4 space-y-2">
@@ -356,171 +557,40 @@ export default function FacturaList({
               </p>
             </div>
           ) : (
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="bg-slate-950 text-white select-none whitespace-nowrap text-[11px]">
-                  <th className="py-2 px-3 font-semibold uppercase tracking-wider">Cliente</th>
-                  <th className="py-2 px-3 font-semibold uppercase tracking-wider whitespace-nowrap min-w-[145px]">N° Factura / Remisión</th>
-                  <th className="py-2 px-3 font-semibold uppercase tracking-wider text-right whitespace-nowrap">Monto Facturado</th>
-                  <th className="py-2 px-2.5 font-semibold uppercase tracking-wider text-center whitespace-nowrap">F. Emisión</th>
-                  <th className="py-2 px-2 font-semibold uppercase tracking-wider text-center whitespace-nowrap">Plazo</th>
-                  <th className="py-2 px-2.5 font-semibold uppercase tracking-wider text-center whitespace-nowrap">F. Vence</th>
-                  <th className="py-2 px-3 font-semibold uppercase tracking-wider text-center min-w-[130px] whitespace-nowrap">Estado</th>
-                  <th className="py-2 px-3 font-semibold uppercase tracking-wider text-right whitespace-nowrap">F. Pago</th>
-                  <th className="py-2 px-2 font-semibold uppercase tracking-wider text-center whitespace-nowrap">¿Pago?</th>
-                  <th className="py-2 px-2.5 font-semibold uppercase tracking-wider text-center whitespace-nowrap">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
-                {paginatedInvoices.map((inv) => {
-                  const dueDateStr = calculateDueDateString(inv.invoiceDate, inv.terms);
-                  const status = getInvoiceStatus(inv, systemDate);
-                  const daysLeft = getDaysDifference(dueDateStr, systemDate);
+            <div className="min-w-[1050px]">
+              {/* Header */}
+              <div className="bg-slate-950 text-white select-none whitespace-nowrap text-[11px] font-semibold uppercase tracking-wider flex items-center h-9">
+                <div className="py-2 px-3 flex-1 min-w-[170px]">Cliente</div>
+                <div className="py-2 px-3 w-[150px] min-w-[150px]">N° Factura / Remisión</div>
+                <div className="py-2 px-3 w-[125px] min-w-[125px] text-right">Monto Facturado</div>
+                <div className="py-2 px-2.5 w-[90px] min-w-[90px] text-center">F. Emisión</div>
+                <div className="py-2 px-2 w-[60px] min-w-[60px] text-center">Plazo</div>
+                <div className="py-2 px-2.5 w-[90px] min-w-[90px] text-center">F. Vence</div>
+                <div className="py-2 px-3 w-[130px] min-w-[130px] text-center">Estado</div>
+                <div className="py-2 px-3 w-[120px] min-w-[120px] text-right">F. Pago</div>
+                <div className="py-2 px-2 w-[55px] min-w-[55px] text-center">¿Pago?</div>
+                <div className="py-2 px-2.5 w-[95px] min-w-[95px] text-center">Acciones</div>
+              </div>
 
-                  // Set status style
-                  let statusBadge = (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/30 dark:text-amber-400 whitespace-nowrap">
-                      A Vencer {daysLeft > 0 ? `(${daysLeft}d)` : '(Hoy)'}
-                    </span>
-                  );
-                  if (status === 'Pagado') {
-                    statusBadge = (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-400 whitespace-nowrap">
-                        Pagado
-                      </span>
-                    );
-                  } else if (status === 'Vencido') {
-                    statusBadge = (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 dark:bg-rose-950/30 dark:text-rose-400 whitespace-nowrap">
-                        Vencido ({Math.abs(daysLeft)}d)
-                      </span>
-                    );
-                  }
-
-                  return (
-                    <tr 
-                      key={inv.id} 
-                      className={`hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors duration-150 ${
-                        inv.paid ? 'opacity-80' : ''
-                      }`}
-                    >
-                      {/* Cliente */}
-                      <td className="py-1.5 px-3 font-semibold text-slate-800 dark:text-slate-100 leading-tight">
-                        {inv.clientName}
-                      </td>
-
-                      {/* Nro Factura / Remisión (1 Sola Línea con espacio suficiente) */}
-                      <td className="py-1.5 px-3 font-mono font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap tracking-wide text-xs">
-                        {inv.documentType === 'remision' ? (
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700/60 font-sans tracking-wider">
-                              REM
-                            </span>
-                            <span className="font-mono font-bold text-slate-900 dark:text-slate-100">
-                              N° {inv.remisionNumero || inv.numero}
-                            </span>
-                          </div>
-                        ) : (
-                          formatInvoiceNumber(inv.sucursal, inv.caja, inv.numero)
-                        )}
-                      </td>
-
-                      {/* Monto Facturado */}
-                      <td className="py-1.5 px-3 text-right font-mono font-bold text-slate-900 dark:text-slate-100 text-xs whitespace-nowrap">
-                        {formatPYG(inv.amount)}
-                      </td>
-
-                      {/* Fecha de factura / remisión */}
-                      <td className="py-1.5 px-2.5 text-center text-slate-500 font-mono text-[11px] whitespace-nowrap">
-                        {formatDateDMY(inv.invoiceDate)}
-                      </td>
-
-                      {/* Plazo término */}
-                      <td className="py-1.5 px-2 text-center text-slate-500 font-medium text-xs whitespace-nowrap">
-                        {inv.documentType === 'remision' ? (
-                          <span className="text-[10px] text-slate-400 font-medium italic">Remisión</span>
-                        ) : inv.terms ? (
-                          `${inv.terms}d`
-                        ) : (
-                          '-'
-                        )}
-                      </td>
-
-                      {/* Fecha de Vto */}
-                      <td className="py-1.5 px-2.5 text-center font-mono text-[11px] font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">
-                        {formatDateDMY(dueDateStr)}
-                      </td>
-
-                      {/* Estado (Ancho y sin partir) */}
-                      <td className="py-1.5 px-3 text-center whitespace-nowrap">
-                        {statusBadge}
-                      </td>
-
-                      {/* Fecha de Pago & Método */}
-                      <td className="py-1.5 px-3 text-right whitespace-nowrap">
-                        {inv.paid && inv.paymentDate ? (
-                          <div className="leading-tight">
-                            <span className="font-semibold text-emerald-600 dark:text-emerald-400 text-[11px] block">
-                              {formatDateDMY(inv.paymentDate)}
-                            </span>
-                            <span className="text-[9px] text-slate-500 dark:text-slate-400 font-mono block">
-                              {inv.paymentMethod || 'Efectivo'}
-                              {inv.paymentDetails?.bankName ? ` - ${inv.paymentDetails.bankName}` : ''}
-                            </span>
-                          </div>
-                        ) : (
-                          <span className="text-slate-400 text-xs">-</span>
-                        )}
-                      </td>
-
-                      {/* Checkbox selector */}
-                      <td className="py-1.5 px-2 text-center">
-                        <input
-                          id={`toggle-paid-${inv.id}`}
-                          aria-label={`Marcar pagado a cliente ${inv.clientName}`}
-                          type="checkbox"
-                          checked={inv.paid}
-                          onChange={() => onTogglePaid(inv.id)}
-                          className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 accent-emerald-500 cursor-pointer align-middle"
-                        />
-                      </td>
-
-                      {/* Action buttons */}
-                      <td className="py-1.5 px-2.5 text-center whitespace-nowrap">
-                        <div className="flex items-center justify-center gap-1">
-                          <button
-                            id={`view-btn-${inv.id}`}
-                            onClick={() => setInvoiceToView(inv)}
-                            className="p-1 bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400 rounded hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors cursor-pointer"
-                            title="Ver Detalle y Pagos de Factura"
-                          >
-                            <Eye className="w-3.5 h-3.5 inline" />
-                          </button>
-
-                          <button
-                            id={`edit-btn-${inv.id}`}
-                            onClick={() => setInvoiceToEdit(inv)}
-                            className="p-1 bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400 rounded hover:bg-amber-100 dark:hover:bg-amber-900/50 transition-colors cursor-pointer"
-                            title="Editar Factura"
-                          >
-                            <Edit3 className="w-3.5 h-3.5 inline" />
-                          </button>
-
-                          <button
-                            id={`delete-btn-${inv.id}`}
-                            onClick={() => setInvoiceToDelete(inv)}
-                            className="p-1 bg-rose-50 text-rose-600 dark:bg-rose-950/20 dark:text-rose-400 rounded hover:bg-rose-100 dark:hover:bg-rose-900/30 transition-colors cursor-pointer"
-                            title="Eliminar Factura"
-                          >
-                            <Trash2 className="w-3.5 h-3.5 inline" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+              {/* Virtualized Rows via react-window */}
+              <List
+                rowCount={paginatedInvoices.length}
+                rowHeight={46}
+                style={{
+                  height: Math.min(552, Math.max(92, paginatedInvoices.length * 46)),
+                  width: '100%'
+                }}
+                rowComponent={FacturaRow}
+                rowProps={{
+                  items: paginatedInvoices,
+                  systemDate: systemDate,
+                  onTogglePaid: onTogglePaid,
+                  onView: setInvoiceToView,
+                  onEdit: setInvoiceToEdit,
+                  onDelete: setInvoiceToDelete
+                }}
+              />
+            </div>
           )}
         </div>
 
@@ -529,19 +599,25 @@ export default function FacturaList({
           <div className="bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700 px-6 py-3 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-semibold text-slate-700 dark:text-slate-300">
             {/* Page Size Selector */}
             <div className="flex items-center gap-2">
-              <span>Mostrar:</span>
+              <span className="text-slate-700 dark:text-slate-300">Mostrar:</span>
               <select
                 id={`page-size-select-${category}`}
                 value={pageSize}
                 onChange={(e) => setPageSize(Number(e.target.value))}
-                className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded px-2.5 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-amber-500 font-bold text-slate-800 dark:text-slate-250 cursor-pointer"
+                className="bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-2.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-amber-500 font-bold text-slate-900 dark:text-white cursor-pointer shadow-xs"
               >
-                <option value={25}>25 por página</option>
-                <option value={50}>50 por página</option>
-                <option value={100}>100 por página</option>
+                <option value={25} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-semibold">25 por página</option>
+                <option value={50} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-semibold">50 por página</option>
+                <option value={100} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-semibold">100 por página</option>
+                <option value={250} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-semibold">250 por página</option>
+                <option value={500} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-semibold">500 por página</option>
+                <option value={1000000} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-semibold">Todas (Virtualizado react-window)</option>
               </select>
               <span className="text-slate-500 dark:text-slate-400">
-                (Mostrando {Math.min(totalItems, (currentPage - 1) * pageSize + 1)}-{Math.min(totalItems, currentPage * pageSize)} de {totalItems})
+                {pageSize >= 1000000 
+                  ? `(Todas las ${totalItems} facturas en vista virtualizada)`
+                  : `(Mostrando ${Math.min(totalItems, (currentPage - 1) * pageSize + 1)}-${Math.min(totalItems, currentPage * pageSize)} de {totalItems})`
+                }
               </span>
             </div>
 
@@ -629,6 +705,7 @@ export default function FacturaList({
         isOpen={!!invoiceToView}
         invoice={invoiceToView}
         systemDate={systemDate}
+        clients={clients}
         onClose={() => setInvoiceToView(null)}
       />
 

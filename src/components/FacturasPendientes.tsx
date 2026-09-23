@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from 'react';
-import { Invoice, InvoiceCategory } from '../types';
+import React, { useState, useRef } from 'react';
+import { Invoice, InvoiceCategory, Client } from '../types';
 import { 
   formatPYG, 
   getInvoiceStatus, 
@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { generateInvoicesPDF } from '../utils/pdfExport';
 import InvoiceDetailModal from './InvoiceDetailModal';
+import DateInputWithEnter, { DateInputHandle } from './DateInputWithEnter';
 
 type SortOption = 
   | 'num-asc' 
@@ -55,14 +56,20 @@ const sortOptions = [
 interface FacturasPendientesProps {
   invoices: Invoice[];
   systemDate: string;
+  clients?: Client[];
 }
 
-export default function FacturasPendientes({ invoices, systemDate }: FacturasPendientesProps) {
+export default function FacturasPendientes({ invoices, systemDate, clients = [] }: FacturasPendientesProps) {
   const [sortBy, setSortBy] = useState<SortOption>('num-asc');
   const [search, setSearch] = useState('');
   const [docTypeFilter, setDocTypeFilter] = useState<'all' | 'facturas' | 'remisiones'>('all');
   const [categoryFilter, setCategoryFilter] = useState<'Todas' | InvoiceCategory>('Todas');
   const [statusFilter, setStatusFilter] = useState<'Todos' | 'Vencido' | 'A Vencer'>('Todos');
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
+  const dateFromRef = useRef<DateInputHandle>(null);
+  const dateToRef = useRef<DateInputHandle>(null);
+  const [dateFieldFilter, setDateFieldFilter] = useState<'emision' | 'vencimiento'>('emision');
   const [invoiceToView, setInvoiceToView] = useState<Invoice | null>(null);
 
   // Filter for UNPAID invoices (all pending)
@@ -95,7 +102,7 @@ export default function FacturasPendientes({ invoices, systemDate }: FacturasPen
     };
   });
 
-  // Filter items by docType, category, status, and search term
+  // Filter items by docType, category, status, date range, and search term
   const filteredItems = allCalculatedItems.filter((item) => {
     const matchesDocType = 
       docTypeFilter === 'all' 
@@ -113,7 +120,16 @@ export default function FacturasPendientes({ invoices, systemDate }: FacturasPen
       (item.numero && item.numero.includes(search)) ||
       (item.remisionNumero && item.remisionNumero.includes(search));
 
-    return matchesDocType && matchesCategory && matchesStatus && matchesSearch;
+    if (!matchesDocType || !matchesCategory || !matchesStatus || !matchesSearch) {
+      return false;
+    }
+
+    // Filtro por fecha (Emisión o Vencimiento)
+    const targetDate = dateFieldFilter === 'vencimiento' ? item.dueDateStr : item.invoiceDate;
+    if (startDate && targetDate < startDate) return false;
+    if (endDate && targetDate > endDate) return false;
+
+    return true;
   });
 
   // Sorted items
@@ -154,7 +170,10 @@ export default function FacturasPendientes({ invoices, systemDate }: FacturasPen
       categoryFilter: categoryFilter,
       statusFilter: statusFilter,
       searchFilter: search,
+      startDate: startDate || undefined,
+      endDate: endDate || undefined,
       systemDate: systemDate,
+      clients: clients,
     });
   };
 
@@ -171,7 +190,7 @@ export default function FacturasPendientes({ invoices, systemDate }: FacturasPen
           className={`text-left rounded-xl p-5 border-l-4 border-amber-500 shadow-sm flex items-center justify-between transition-all cursor-pointer ${
             statusFilter === 'A Vencer' 
               ? 'bg-amber-50 dark:bg-amber-950/40 ring-2 ring-amber-500 shadow-md' 
-              : 'bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-750'
+              : 'bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700'
           }`}
         >
           <div className="space-y-1">
@@ -204,7 +223,7 @@ export default function FacturasPendientes({ invoices, systemDate }: FacturasPen
           className={`text-left rounded-xl p-5 border-l-4 border-rose-500 shadow-sm flex items-center justify-between transition-all cursor-pointer ${
             statusFilter === 'Vencido' 
               ? 'bg-rose-50 dark:bg-rose-950/40 ring-2 ring-rose-500 shadow-md' 
-              : 'bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-750'
+              : 'bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700'
           }`}
         >
           <div className="space-y-1">
@@ -232,14 +251,14 @@ export default function FacturasPendientes({ invoices, systemDate }: FacturasPen
 
       </div>
 
-      {/* Control Bar: Documentos, Categoría, Estado y Acciones con selectores compactos */}
-      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-3.5 space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2.5">
+      {/* Control Bar: Documentos, Categoría, Estado y Acciones con selectores compactos (15% más chicos) */}
+      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 p-2.5 space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex flex-wrap items-center gap-2">
             {/* 1. Selector de Documentos */}
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">
+            <div className="flex items-center gap-1">
+              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">
                 Documentos:
               </span>
               <div className="relative">
@@ -247,44 +266,44 @@ export default function FacturasPendientes({ invoices, systemDate }: FacturasPen
                   id="doc-type-filter-pendientes"
                   value={docTypeFilter}
                   onChange={(e) => setDocTypeFilter(e.target.value as 'all' | 'facturas' | 'remisiones')}
-                  className="appearance-none pl-2.5 pr-8 py-1.5 bg-amber-50/60 dark:bg-slate-950 text-slate-900 dark:text-slate-100 border border-amber-300 dark:border-amber-600/50 text-xs font-bold rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-xs cursor-pointer"
+                  className="appearance-none pl-2 pr-6 py-1 bg-amber-50/60 dark:bg-slate-950 text-slate-900 dark:text-slate-100 border border-amber-300 dark:border-amber-600/50 text-[11px] font-bold rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-xs cursor-pointer"
                 >
                   <option value="all">Facturas y Remisiones</option>
                   <option value="facturas">Solo Facturas</option>
                   <option value="remisiones">Solo Remisiones</option>
                 </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2 text-amber-600 dark:text-amber-400">
-                  <ChevronDown className="w-3.5 h-3.5" />
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-1.5 text-amber-600 dark:text-amber-400">
+                  <ChevronDown className="w-3 h-3" />
                 </div>
               </div>
             </div>
 
             {/* 2. Selector de Categoría (Compacto con flecha) */}
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap flex items-center gap-1">
-                <Layers className="w-3.5 h-3.5" /> Categoría:
+            <div className="flex items-center gap-1">
+              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap flex items-center gap-1">
+                <Layers className="w-3 h-3" /> Categoría:
               </span>
               <div className="relative">
                 <select
                   id="category-filter-pendientes"
                   value={categoryFilter}
                   onChange={(e) => setCategoryFilter(e.target.value as 'Todas' | InvoiceCategory)}
-                  className="appearance-none pl-2.5 pr-8 py-1.5 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 text-xs font-bold rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-xs cursor-pointer"
+                  className="appearance-none pl-2 pr-6 py-1 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 text-[11px] font-bold rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-xs cursor-pointer"
                 >
                   <option value="Todas">Todas las Categorías ({pendingInvoices.length})</option>
                   <option value="Facturas">Facturas ({pendingInvoices.filter(i => i.category === 'Facturas').length})</option>
                   <option value="Otras">Otras Facturas ({pendingInvoices.filter(i => i.category === 'Otras').length})</option>
                   <option value="Cristian">Facturas Cristian ({pendingInvoices.filter(i => i.category === 'Cristian').length})</option>
                 </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2 text-slate-500 dark:text-slate-400">
-                  <ChevronDown className="w-3.5 h-3.5" />
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-1.5 text-slate-500 dark:text-slate-400">
+                  <ChevronDown className="w-3 h-3" />
                 </div>
               </div>
             </div>
 
             {/* 3. Selector de Estado (Compacto con flecha) */}
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">
+            <div className="flex items-center gap-1">
+              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">
                 Estado:
               </span>
               <div className="relative">
@@ -292,21 +311,21 @@ export default function FacturasPendientes({ invoices, systemDate }: FacturasPen
                   id="status-filter-pendientes"
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value as 'Todos' | 'Vencido' | 'A Vencer')}
-                  className="appearance-none pl-2.5 pr-8 py-1.5 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 text-xs font-bold rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-xs cursor-pointer"
+                  className="appearance-none pl-2 pr-6 py-1 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 text-[11px] font-bold rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-xs cursor-pointer"
                 >
                   <option value="Todos">Todos los Estados ({allCalculatedItems.length})</option>
                   <option value="Vencido">Solo Vencidos ({countVencido})</option>
                   <option value="A Vencer">A Vencer ({countAVencer})</option>
                 </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2 text-slate-500 dark:text-slate-400">
-                  <ChevronDown className="w-3.5 h-3.5" />
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-1.5 text-slate-500 dark:text-slate-400">
+                  <ChevronDown className="w-3 h-3" />
                 </div>
               </div>
             </div>
 
             {/* 4. Selector de Ordenación (Movido arriba) */}
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">
+            <div className="flex items-center gap-1">
+              <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">
                 Ordenar por:
               </span>
               <div className="relative">
@@ -314,7 +333,7 @@ export default function FacturasPendientes({ invoices, systemDate }: FacturasPen
                   id="sort-select-pendientes"
                   value={sortBy}
                   onChange={(e) => setSortBy(e.target.value as SortOption)}
-                  className="appearance-none pl-2.5 pr-8 py-1.5 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 text-xs font-bold rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-xs cursor-pointer"
+                  className="appearance-none pl-2 pr-6 py-1 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 border border-slate-300 dark:border-slate-700 text-[11px] font-bold rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-xs cursor-pointer"
                 >
                   {sortOptions.map((opt) => (
                     <option key={opt.value} value={opt.value}>
@@ -322,7 +341,7 @@ export default function FacturasPendientes({ invoices, systemDate }: FacturasPen
                     </option>
                   ))}
                 </select>
-                <ArrowUpDown className="w-3.5 h-3.5 pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-amber-500" />
+                <ArrowUpDown className="w-3 h-3 pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-amber-500" />
               </div>
             </div>
           </div>
@@ -333,38 +352,88 @@ export default function FacturasPendientes({ invoices, systemDate }: FacturasPen
             id="export-pdf-btn-pendientes"
             onClick={handleExportPDF}
             title="Descargar o imprimir reporte PDF según la búsqueda y categoría actual"
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold rounded-lg shadow-sm transition-all cursor-pointer whitespace-nowrap"
+            className="flex items-center gap-1 px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-slate-950 text-[11px] font-bold rounded-lg shadow-xs transition-all cursor-pointer whitespace-nowrap"
           >
-            <FileText className="w-3.5 h-3.5" />
+            <FileText className="w-3 h-3" />
             <span>Hacer PDF ({sortedTableItems.length})</span>
           </button>
 
         </div>
 
-        {/* Buscador & Contador */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 border-t border-slate-100 dark:border-slate-700/60">
-          <div className="relative w-full sm:w-80">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+        {/* Buscador, Filtro de Fechas (Solo Desde y Hasta) & Contador en una fila compacta */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-1.5 border-t border-slate-100 dark:border-slate-700/60 text-xs">
+          
+          {/* Buscador */}
+          <div className="relative flex-1 min-w-[180px] max-w-xs">
+            <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Buscar por cliente o número..."
-              className="w-full pl-9 pr-8 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs rounded-lg text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500 font-medium"
+              className="w-full pl-8 pr-7 py-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-[11px] rounded-lg text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500 font-medium"
             />
             {search && (
               <button
                 type="button"
                 onClick={() => setSearch('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
               >
-                <X className="w-3.5 h-3.5" />
+                <X className="w-3 h-3" />
               </button>
             )}
           </div>
 
-          <span className="bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 text-xs px-2.5 py-1.5 rounded-lg font-bold border border-amber-200 dark:border-amber-800">
-            {sortedTableItems.length} {sortedTableItems.length === 1 ? 'documento pendiente' : 'documentos pendientes'}
+          {/* Rango de Fechas: Solo Desde y Hasta con soporte para tecla Enter */}
+          <div className="flex items-center gap-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-0.5 shadow-xs">
+            <select
+              id="date-field-pendientes"
+              value={dateFieldFilter}
+              onChange={(e) => setDateFieldFilter(e.target.value as 'emision' | 'vencimiento')}
+              className="bg-transparent text-[10px] font-bold text-slate-600 dark:text-slate-300 focus:outline-none cursor-pointer pr-1"
+            >
+              <option value="emision">Emisión</option>
+              <option value="vencimiento">Vencimiento</option>
+            </select>
+            <span className="text-slate-300 dark:text-slate-600">|</span>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+              Desde:
+            </span>
+            <DateInputWithEnter
+              ref={dateFromRef}
+              id="date-from-pendientes"
+              value={startDate}
+              onChange={setStartDate}
+              onEnterNext={() => dateToRef.current?.focus()}
+            />
+            <span className="text-slate-300 dark:text-slate-600">|</span>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+              Hasta:
+            </span>
+            <DateInputWithEnter
+              ref={dateToRef}
+              id="date-to-pendientes"
+              value={endDate}
+              onChange={setEndDate}
+            />
+            {(startDate || endDate) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setStartDate('');
+                  setEndDate('');
+                }}
+                title="Quitar fechas"
+                className="p-0.5 text-slate-400 hover:text-rose-500 rounded cursor-pointer ml-0.5"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+
+          {/* Contador */}
+          <span className="bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 text-[11px] px-2 py-0.5 rounded-md font-bold border border-amber-200 dark:border-amber-800 whitespace-nowrap">
+            {sortedTableItems.length} {sortedTableItems.length === 1 ? 'pendiente' : 'pendientes'}
           </span>
         </div>
       </div>
@@ -548,6 +617,7 @@ export default function FacturasPendientes({ invoices, systemDate }: FacturasPen
         isOpen={!!invoiceToView}
         invoice={invoiceToView}
         systemDate={systemDate}
+        clients={clients}
         onClose={() => setInvoiceToView(null)}
       />
 
