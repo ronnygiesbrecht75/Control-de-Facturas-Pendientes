@@ -34,7 +34,7 @@ export default function Clientes({ clients, onAddClient, onDeleteClient }: Clien
   const nextCode = clients.reduce((max, c) => Math.max(max, typeof c.code === 'number' ? c.code : 0), 0) + 1;
 
   useEffect(() => {
-    clientInputRef.current?.focus();
+    rucInputRef.current?.focus();
   }, []);
 
   const handleLookupRuc = async () => {
@@ -94,16 +94,23 @@ export default function Clientes({ clients, onAddClient, onDeleteClient }: Clien
       setNewClientName('');
       setNewClientRuc('');
       setRucSuccessMsg(null);
+
+      // Foco automático de vuelta al cuadro de RUC para agregar el siguiente cliente
+      setTimeout(() => {
+        rucInputRef.current?.focus();
+        rucInputRef.current?.select();
+      }, 50);
     } else if (typeof result === 'string') {
       setNotification({ type: 'error', msg: result });
+      setTimeout(() => {
+        clientInputRef.current?.focus();
+      }, 50);
     } else {
       setNotification({ type: 'error', msg: 'El cliente ya se encuentra registrado.' });
+      setTimeout(() => {
+        clientInputRef.current?.focus();
+      }, 50);
     }
-
-    // Refocus the input field for continuous entry
-    setTimeout(() => {
-      clientInputRef.current?.focus();
-    }, 50);
 
     setTimeout(() => {
       setNotification(null);

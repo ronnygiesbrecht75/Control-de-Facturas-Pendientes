@@ -29,6 +29,8 @@ import {
   TrendingUp, 
   CreditCard,
   ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
   ChevronDown,
   FileText,
   Printer
@@ -46,14 +48,22 @@ type SortOption =
   | 'num-desc' 
   | 'date-desc' 
   | 'date-asc' 
+  | 'amount-desc'
+  | 'amount-asc'
+  | 'due-asc'
+  | 'due-desc'
   | 'client-asc' 
   | 'client-desc';
 
 const sortOptions = [
-  { value: 'num-asc', label: 'Número de factura Menor a Mayor', shortLabel: 'Nro Factura (Menor a Mayor)' },
-  { value: 'num-desc', label: 'Número de factura Mayor a Menor', shortLabel: 'Nro Factura (Mayor a Menor)' },
-  { value: 'date-desc', label: 'Fecha: Reciente a Antigua', shortLabel: 'Fecha (más reciente)' },
-  { value: 'date-asc', label: 'Fecha: Antigua a Reciente', shortLabel: 'Fecha (más antigua)' },
+  { value: 'num-asc', label: 'N° Factura / Remisión: Menor a Mayor', shortLabel: 'N° Factura (Menor a Mayor)' },
+  { value: 'num-desc', label: 'N° Factura / Remisión: Mayor a Menor', shortLabel: 'N° Factura (Mayor a Menor)' },
+  { value: 'date-desc', label: 'Fecha Emisión: Reciente a Antigua', shortLabel: 'Fecha (más reciente)' },
+  { value: 'date-asc', label: 'Fecha Emisión: Antigua a Reciente', shortLabel: 'Fecha (más antigua)' },
+  { value: 'amount-desc', label: 'Monto: Mayor a Menor', shortLabel: 'Monto (Mayor a Menor)' },
+  { value: 'amount-asc', label: 'Monto: Menor a Mayor', shortLabel: 'Monto (Menor a Mayor)' },
+  { value: 'due-asc', label: 'Vencimiento: Más Urgentes Primero', shortLabel: 'Vence primero' },
+  { value: 'due-desc', label: 'Vencimiento: Más Lejanos Primero', shortLabel: 'Vence más tarde' },
   { value: 'client-asc', label: 'Cliente: A a Z', shortLabel: 'Cliente (A-Z)' },
   { value: 'client-desc', label: 'Cliente: Z a A', shortLabel: 'Cliente (Z-A)' },
 ] as const;
@@ -104,17 +114,20 @@ const FacturaRow = ({
   return (
     <div
       style={style}
-      className={`flex items-center box-border min-w-[1050px] border-b border-slate-100 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors duration-150 text-xs ${
+      className={`w-full flex items-center box-border min-w-[1040px] border-b border-slate-100 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors duration-150 text-xs ${
         inv.paid ? 'opacity-80' : ''
       }`}
     >
-      {/* Cliente */}
-      <div className="py-1 px-3 flex-1 min-w-[170px] font-semibold text-slate-800 dark:text-slate-100 leading-tight truncate">
+      {/* Cliente (ancho ampliado con el espacio recuperado de Estado y F. Pago) */}
+      <div 
+        className="py-1 px-3 flex-[3.5] min-w-[270px] font-semibold text-slate-800 dark:text-slate-100 leading-tight truncate"
+        title={inv.clientName}
+      >
         {inv.clientName}
       </div>
 
       {/* N° Factura / Remisión */}
-      <div className="py-1 px-3 w-[150px] min-w-[150px] font-mono font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap tracking-wide text-xs">
+      <div className="py-1 px-3 flex-[1.4] min-w-[155px] font-mono font-bold text-slate-700 dark:text-slate-300 whitespace-nowrap tracking-wide text-xs">
         {inv.documentType === 'remision' ? (
           <div className="flex items-center gap-1.5">
             <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700/60 font-sans tracking-wider">
@@ -130,17 +143,17 @@ const FacturaRow = ({
       </div>
 
       {/* Monto Facturado */}
-      <div className="py-1 px-3 w-[125px] min-w-[125px] text-right font-mono font-bold text-slate-900 dark:text-slate-100 text-xs whitespace-nowrap">
+      <div className="py-1 px-3 flex-[1.2] min-w-[130px] text-right font-mono font-bold text-slate-900 dark:text-slate-100 text-xs whitespace-nowrap">
         {formatPYG(inv.amount)}
       </div>
 
       {/* F. Emisión */}
-      <div className="py-1 px-2.5 w-[90px] min-w-[90px] text-center text-slate-500 font-mono text-[11px] whitespace-nowrap">
+      <div className="py-1 px-2 w-[88px] min-w-[88px] shrink-0 text-center text-slate-500 font-mono text-[11px] whitespace-nowrap">
         {formatDateDMY(inv.invoiceDate)}
       </div>
 
       {/* Plazo */}
-      <div className="py-1 px-2 w-[60px] min-w-[60px] text-center text-slate-500 font-medium text-xs whitespace-nowrap">
+      <div className="py-1 px-1.5 w-[55px] min-w-[55px] shrink-0 text-center text-slate-500 font-medium text-xs whitespace-nowrap">
         {inv.documentType === 'remision' ? (
           <span className="text-[10px] text-slate-400 font-medium italic">Remisión</span>
         ) : inv.terms ? (
@@ -151,17 +164,17 @@ const FacturaRow = ({
       </div>
 
       {/* F. Vence */}
-      <div className="py-1 px-2.5 w-[90px] min-w-[90px] text-center font-mono text-[11px] font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">
+      <div className="py-1 px-2 w-[88px] min-w-[88px] shrink-0 text-center font-mono text-[11px] font-medium text-slate-700 dark:text-slate-300 whitespace-nowrap">
         {formatDateDMY(dueDateStr)}
       </div>
 
-      {/* Estado */}
-      <div className="py-1 px-3 w-[130px] min-w-[130px] text-center whitespace-nowrap">
+      {/* Estado (anchura minimizada al badge sin espacio sobrante) */}
+      <div className="py-1 px-1 w-[100px] min-w-[100px] shrink-0 text-center whitespace-nowrap">
         {statusBadge}
       </div>
 
-      {/* F. Pago & Método */}
-      <div className="py-1 px-3 w-[120px] min-w-[120px] text-right whitespace-nowrap">
+      {/* F. Pago & Método (anchura minimizada sin espacio sobrante) */}
+      <div className="py-1 px-2 w-[105px] min-w-[100px] shrink-0 text-right whitespace-nowrap">
         {inv.paid && inv.paymentDate ? (
           <div className="leading-tight">
             <span className="font-semibold text-emerald-600 dark:text-emerald-400 text-[11px] block">
@@ -178,7 +191,7 @@ const FacturaRow = ({
       </div>
 
       {/* ¿Pago? */}
-      <div className="py-1 px-2 w-[55px] min-w-[55px] text-center">
+      <div className="py-1 px-1 w-[55px] min-w-[55px] shrink-0 text-center">
         <input
           id={`toggle-paid-${inv.id}`}
           aria-label={`Marcar pagado a cliente ${inv.clientName}`}
@@ -190,7 +203,7 @@ const FacturaRow = ({
       </div>
 
       {/* Acciones */}
-      <div className="py-1 px-2.5 w-[95px] min-w-[95px] text-center whitespace-nowrap">
+      <div className="py-1 px-2 w-[105px] min-w-[100px] shrink-0 text-center whitespace-nowrap">
         <div className="flex items-center justify-center gap-1">
           <button
             id={`view-btn-${inv.id}`}
@@ -308,7 +321,7 @@ export default function FacturaList({
     return computedStatus === statusFilter;
   });
 
-  // Sort invoices according to selection (usando los últimos 7 dígitos numéricos)
+  // Sort invoices according to selection (usando los últimos 7 dígitos numéricos de factura o remisión)
   const sortedInvoices = [...filteredInvoices].sort((a, b) => {
     if (sortBy === 'num-asc') {
       return compareInvoiceNumbers(a, b, true);
@@ -327,6 +340,22 @@ export default function FacturaList({
     }
     if (sortBy === 'date-desc') {
       return new Date(b.invoiceDate).getTime() - new Date(a.invoiceDate).getTime();
+    }
+    if (sortBy === 'amount-desc') {
+      return b.amount - a.amount;
+    }
+    if (sortBy === 'amount-asc') {
+      return a.amount - b.amount;
+    }
+    if (sortBy === 'due-asc') {
+      const dueA = calculateDueDateString(a.invoiceDate, a.terms);
+      const dueB = calculateDueDateString(b.invoiceDate, b.terms);
+      return new Date(dueA).getTime() - new Date(dueB).getTime();
+    }
+    if (sortBy === 'due-desc') {
+      const dueA = calculateDueDateString(a.invoiceDate, a.terms);
+      const dueB = calculateDueDateString(b.invoiceDate, b.terms);
+      return new Date(dueB).getTime() - new Date(dueA).getTime();
     }
     return 0;
   });
@@ -463,8 +492,8 @@ export default function FacturaList({
                 </div>
               </div>
 
-              {/* 3. Selector de Ordenación */}
-              <div className="flex items-center gap-1">
+              {/* 3. Selector de Ordenación con botón rápido */}
+              <div className="flex items-center gap-1.5">
                 <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">
                   Ordenar por:
                 </span>
@@ -594,19 +623,119 @@ export default function FacturaList({
               </p>
             </div>
           ) : (
-            <div className="min-w-[1050px]">
-              {/* Header */}
-              <div className="bg-slate-950 text-white select-none whitespace-nowrap text-[11px] font-semibold uppercase tracking-wider flex items-center h-9">
-                <div className="py-2 px-3 flex-1 min-w-[170px]">Cliente</div>
-                <div className="py-2 px-3 w-[150px] min-w-[150px]">N° Factura / Remisión</div>
-                <div className="py-2 px-3 w-[125px] min-w-[125px] text-right">Monto Facturado</div>
-                <div className="py-2 px-2.5 w-[90px] min-w-[90px] text-center">F. Emisión</div>
-                <div className="py-2 px-2 w-[60px] min-w-[60px] text-center">Plazo</div>
-                <div className="py-2 px-2.5 w-[90px] min-w-[90px] text-center">F. Vence</div>
-                <div className="py-2 px-3 w-[130px] min-w-[130px] text-center">Estado</div>
-                <div className="py-2 px-3 w-[120px] min-w-[120px] text-right">F. Pago</div>
-                <div className="py-2 px-2 w-[55px] min-w-[55px] text-center">¿Pago?</div>
-                <div className="py-2 px-2.5 w-[95px] min-w-[95px] text-center">Acciones</div>
+            <div className="w-full min-w-[1040px]">
+              {/* Header con ordenación interactiva por columnas */}
+              <div className="w-full bg-slate-950 text-white select-none whitespace-nowrap text-[11px] font-semibold uppercase tracking-wider flex items-center h-9">
+                {/* Cliente */}
+                <button
+                  type="button"
+                  onClick={() => setSortBy(sortBy === 'client-asc' ? 'client-desc' : 'client-asc')}
+                  title="Ordenar por Cliente (A-Z / Z-A)"
+                  className={`py-2 px-3 flex-[3.5] min-w-[270px] flex items-center gap-1.5 hover:text-amber-400 hover:bg-slate-900 transition-colors text-left cursor-pointer font-semibold uppercase tracking-wider ${
+                    sortBy.startsWith('client') ? 'text-amber-400 bg-slate-900/80 font-bold' : 'text-white'
+                  }`}
+                >
+                  <span className="truncate">Cliente</span>
+                  {sortBy === 'client-asc' ? (
+                    <ArrowUp className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  ) : sortBy === 'client-desc' ? (
+                    <ArrowDown className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  ) : (
+                    <ArrowUpDown className="w-3 h-3 text-slate-500 opacity-60 shrink-0" />
+                  )}
+                </button>
+
+                {/* N° Factura / Remisión */}
+                <button
+                  type="button"
+                  id={`sort-header-num-${category}`}
+                  onClick={() => setSortBy(sortBy === 'num-asc' ? 'num-desc' : 'num-asc')}
+                  title="Ordenar por número de factura o remisión (Menor a Mayor / Mayor a Menor)"
+                  className={`py-2 px-3 flex-[1.4] min-w-[155px] flex items-center gap-1.5 hover:text-amber-400 hover:bg-slate-900 transition-colors text-left cursor-pointer font-semibold uppercase tracking-wider ${
+                    sortBy.startsWith('num') ? 'text-amber-400 bg-slate-900/80 font-bold' : 'text-white'
+                  }`}
+                >
+                  <span className="truncate">N° Factura / Remisión</span>
+                  {sortBy === 'num-asc' ? (
+                    <ArrowUp className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  ) : sortBy === 'num-desc' ? (
+                    <ArrowDown className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  ) : (
+                    <ArrowUpDown className="w-3 h-3 text-slate-500 opacity-60 shrink-0" />
+                  )}
+                </button>
+
+                {/* Monto Facturado */}
+                <button
+                  type="button"
+                  onClick={() => setSortBy(sortBy === 'amount-desc' ? 'amount-asc' : 'amount-desc')}
+                  title="Ordenar por Monto Facturado (Mayor a Menor / Menor a Mayor)"
+                  className={`py-2 px-3 flex-[1.2] min-w-[130px] flex items-center justify-end gap-1.5 hover:text-amber-400 hover:bg-slate-900 transition-colors cursor-pointer font-semibold uppercase tracking-wider text-right ${
+                    sortBy.startsWith('amount') ? 'text-amber-400 bg-slate-900/80 font-bold' : 'text-white'
+                  }`}
+                >
+                  <span>Monto Facturado</span>
+                  {sortBy === 'amount-desc' ? (
+                    <ArrowDown className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  ) : sortBy === 'amount-asc' ? (
+                    <ArrowUp className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                  ) : (
+                    <ArrowUpDown className="w-3 h-3 text-slate-500 opacity-60 shrink-0" />
+                  )}
+                </button>
+
+                {/* F. Emisión */}
+                <button
+                  type="button"
+                  onClick={() => setSortBy(sortBy === 'date-desc' ? 'date-asc' : 'date-desc')}
+                  title="Ordenar por Fecha de Emisión"
+                  className={`py-2 px-2 w-[88px] min-w-[88px] shrink-0 flex items-center justify-center gap-1 hover:text-amber-400 hover:bg-slate-900 transition-colors cursor-pointer font-semibold uppercase tracking-wider text-center ${
+                    sortBy.startsWith('date') ? 'text-amber-400 bg-slate-900/80 font-bold' : 'text-white'
+                  }`}
+                >
+                  <span>F. Emisión</span>
+                  {sortBy === 'date-desc' ? (
+                    <ArrowDown className="w-3 h-3 text-amber-400 shrink-0" />
+                  ) : sortBy === 'date-asc' ? (
+                    <ArrowUp className="w-3 h-3 text-amber-400 shrink-0" />
+                  ) : (
+                    <ArrowUpDown className="w-2.5 h-2.5 text-slate-500 opacity-60 shrink-0" />
+                  )}
+                </button>
+
+                {/* Plazo */}
+                <div className="py-2 px-1.5 w-[55px] min-w-[55px] shrink-0 text-center">Plazo</div>
+
+                {/* F. Vence */}
+                <button
+                  type="button"
+                  onClick={() => setSortBy(sortBy === 'due-asc' ? 'due-desc' : 'due-asc')}
+                  title="Ordenar por Fecha de Vencimiento"
+                  className={`py-2 px-2 w-[88px] min-w-[88px] shrink-0 flex items-center justify-center gap-1 hover:text-amber-400 hover:bg-slate-900 transition-colors cursor-pointer font-semibold uppercase tracking-wider text-center ${
+                    sortBy.startsWith('due') ? 'text-amber-400 bg-slate-900/80 font-bold' : 'text-white'
+                  }`}
+                >
+                  <span>F. Vence</span>
+                  {sortBy === 'due-asc' ? (
+                    <ArrowUp className="w-3 h-3 text-amber-400 shrink-0" />
+                  ) : sortBy === 'due-desc' ? (
+                    <ArrowDown className="w-3 h-3 text-amber-400 shrink-0" />
+                  ) : (
+                    <ArrowUpDown className="w-2.5 h-2.5 text-slate-500 opacity-60 shrink-0" />
+                  )}
+                </button>
+
+                {/* Estado (reducido al mínimo) */}
+                <div className="py-2 px-1 w-[100px] min-w-[100px] shrink-0 text-center">Estado</div>
+
+                {/* F. Pago (reducido al mínimo) */}
+                <div className="py-2 px-2 w-[105px] min-w-[100px] shrink-0 text-right">F. Pago</div>
+
+                {/* ¿Pago? */}
+                <div className="py-2 px-1 w-[55px] min-w-[55px] shrink-0 text-center">¿Pago?</div>
+
+                {/* Acciones */}
+                <div className="py-2 px-2 w-[105px] min-w-[100px] shrink-0 text-center">Acciones</div>
               </div>
 
               {/* Virtualized Rows via react-window */}

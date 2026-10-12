@@ -19,7 +19,9 @@ import {
   AlertTriangle, 
   CheckCircle, 
   FileWarning, 
-  ArrowUpDown, 
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown, 
   Search, 
   X,
   Clock,
@@ -37,16 +39,20 @@ type SortOption =
   | 'num-desc' 
   | 'date-desc' 
   | 'date-asc' 
+  | 'amount-desc'
+  | 'amount-asc'
   | 'client-asc' 
   | 'client-desc'
   | 'due-asc'
   | 'due-desc';
 
 const sortOptions = [
-  { value: 'num-asc', label: 'Número de factura Menor a Mayor' },
-  { value: 'num-desc', label: 'Número de factura Mayor a Menor' },
+  { value: 'num-asc', label: 'N° Factura / Remisión: Menor a Mayor' },
+  { value: 'num-desc', label: 'N° Factura / Remisión: Mayor a Menor' },
   { value: 'date-desc', label: 'Fecha Emisión: Reciente a Antigua' },
   { value: 'date-asc', label: 'Fecha Emisión: Antigua a Reciente' },
+  { value: 'amount-desc', label: 'Monto: Mayor a Menor' },
+  { value: 'amount-asc', label: 'Monto: Menor a Mayor' },
   { value: 'due-asc', label: 'Vencimiento: Más Urgentes Primero' },
   { value: 'due-desc', label: 'Vencimiento: Más Lejanos Primero' },
   { value: 'client-asc', label: 'Cliente: A a Z' },
@@ -149,6 +155,12 @@ export default function FacturasPendientes({ invoices, systemDate, clients = [] 
     }
     if (sortBy === 'date-desc') {
       return new Date(b.invoiceDate).getTime() - new Date(a.invoiceDate).getTime();
+    }
+    if (sortBy === 'amount-desc') {
+      return b.amount - a.amount;
+    }
+    if (sortBy === 'amount-asc') {
+      return a.amount - b.amount;
     }
     if (sortBy === 'due-asc') {
       return new Date(a.dueDateStr).getTime() - new Date(b.dueDateStr).getTime();
@@ -468,13 +480,104 @@ export default function FacturasPendientes({ invoices, systemDate, clients = [] 
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-slate-950 text-white select-none border-b border-slate-800 text-[11px] whitespace-nowrap">
-                  <th className="py-2 px-3 font-semibold uppercase tracking-wider">Cliente</th>
-                  <th className="py-2 px-3 font-semibold uppercase tracking-wider whitespace-nowrap min-w-[145px]">N° de Factura</th>
+                  <th className="py-2 px-3 font-semibold uppercase tracking-wider w-[23%] min-w-[210px]">
+                    <button
+                      type="button"
+                      onClick={() => setSortBy(sortBy === 'client-asc' ? 'client-desc' : 'client-asc')}
+                      title="Ordenar por Cliente"
+                      className={`flex items-center gap-1.5 hover:text-amber-400 transition-colors cursor-pointer text-left font-semibold uppercase tracking-wider ${
+                        sortBy.startsWith('client') ? 'text-amber-400 font-bold' : 'text-white'
+                      }`}
+                    >
+                      <span>Cliente</span>
+                      {sortBy === 'client-asc' ? (
+                        <ArrowUp className="w-3 h-3 text-amber-400" />
+                      ) : sortBy === 'client-desc' ? (
+                        <ArrowDown className="w-3 h-3 text-amber-400" />
+                      ) : (
+                        <ArrowUpDown className="w-3 h-3 text-slate-500 opacity-60" />
+                      )}
+                    </button>
+                  </th>
+                  <th className="py-2 px-3 font-semibold uppercase tracking-wider whitespace-nowrap min-w-[150px]">
+                    <button
+                      type="button"
+                      id="sort-header-num-pendientes"
+                      onClick={() => setSortBy(sortBy === 'num-asc' ? 'num-desc' : 'num-asc')}
+                      title="Ordenar por N° Factura / Remisión"
+                      className={`flex items-center gap-1.5 hover:text-amber-400 transition-colors cursor-pointer text-left font-semibold uppercase tracking-wider ${
+                        sortBy.startsWith('num') ? 'text-amber-400 font-bold' : 'text-white'
+                      }`}
+                    >
+                      <span>N° Factura / Remisión</span>
+                      {sortBy === 'num-asc' ? (
+                        <ArrowUp className="w-3.5 h-3.5 text-amber-400" />
+                      ) : sortBy === 'num-desc' ? (
+                        <ArrowDown className="w-3.5 h-3.5 text-amber-400" />
+                      ) : (
+                        <ArrowUpDown className="w-3 h-3 text-slate-500 opacity-60" />
+                      )}
+                    </button>
+                  </th>
                   <th className="py-2 px-2.5 font-semibold uppercase tracking-wider whitespace-nowrap">Categoría</th>
-                  <th className="py-2 px-2.5 font-semibold uppercase tracking-wider whitespace-nowrap">Emisión</th>
-                  <th className="py-2 px-3 font-semibold uppercase tracking-wider text-right whitespace-nowrap">Monto Facturado</th>
+                  <th className="py-2 px-2.5 font-semibold uppercase tracking-wider whitespace-nowrap">
+                    <button
+                      type="button"
+                      onClick={() => setSortBy(sortBy === 'date-desc' ? 'date-asc' : 'date-desc')}
+                      title="Ordenar por Fecha de Emisión"
+                      className={`flex items-center gap-1 hover:text-amber-400 transition-colors cursor-pointer text-left font-semibold uppercase tracking-wider ${
+                        sortBy.startsWith('date') ? 'text-amber-400 font-bold' : 'text-white'
+                      }`}
+                    >
+                      <span>Emisión</span>
+                      {sortBy === 'date-desc' ? (
+                        <ArrowDown className="w-3 h-3 text-amber-400" />
+                      ) : sortBy === 'date-asc' ? (
+                        <ArrowUp className="w-3 h-3 text-amber-400" />
+                      ) : (
+                        <ArrowUpDown className="w-2.5 h-2.5 text-slate-500 opacity-60" />
+                      )}
+                    </button>
+                  </th>
+                  <th className="py-2 px-3 font-semibold uppercase tracking-wider text-right whitespace-nowrap">
+                    <button
+                      type="button"
+                      onClick={() => setSortBy(sortBy === 'amount-desc' ? 'amount-asc' : 'amount-desc')}
+                      title="Ordenar por Monto Facturado"
+                      className={`flex items-center justify-end gap-1 hover:text-amber-400 transition-colors cursor-pointer ml-auto font-semibold uppercase tracking-wider ${
+                        sortBy.startsWith('amount') ? 'text-amber-400 font-bold' : 'text-white'
+                      }`}
+                    >
+                      <span>Monto Facturado</span>
+                      {sortBy === 'amount-desc' ? (
+                        <ArrowDown className="w-3.5 h-3.5 text-amber-400" />
+                      ) : sortBy === 'amount-asc' ? (
+                        <ArrowUp className="w-3.5 h-3.5 text-amber-400" />
+                      ) : (
+                        <ArrowUpDown className="w-3 h-3 text-slate-500 opacity-60" />
+                      )}
+                    </button>
+                  </th>
                   <th className="py-2 px-2 font-semibold uppercase tracking-wider text-center whitespace-nowrap">Plazo</th>
-                  <th className="py-2 px-2.5 font-semibold uppercase tracking-wider text-center whitespace-nowrap">Vencimiento</th>
+                  <th className="py-2 px-2.5 font-semibold uppercase tracking-wider text-center whitespace-nowrap">
+                    <button
+                      type="button"
+                      onClick={() => setSortBy(sortBy === 'due-asc' ? 'due-desc' : 'due-asc')}
+                      title="Ordenar por Vencimiento"
+                      className={`flex items-center justify-center gap-1 hover:text-amber-400 transition-colors cursor-pointer mx-auto font-semibold uppercase tracking-wider ${
+                        sortBy.startsWith('due') ? 'text-amber-400 font-bold' : 'text-white'
+                      }`}
+                    >
+                      <span>Vencimiento</span>
+                      {sortBy === 'due-asc' ? (
+                        <ArrowUp className="w-3 h-3 text-amber-400" />
+                      ) : sortBy === 'due-desc' ? (
+                        <ArrowDown className="w-3 h-3 text-amber-400" />
+                      ) : (
+                        <ArrowUpDown className="w-2.5 h-2.5 text-slate-500 opacity-60" />
+                      )}
+                    </button>
+                  </th>
                   <th className="py-2 px-3 font-semibold uppercase tracking-wider text-right font-bold whitespace-nowrap min-w-[140px]">Estado / Días</th>
                   <th className="py-2 px-2.5 font-semibold uppercase tracking-wider text-center whitespace-nowrap">Acciones</th>
                 </tr>
@@ -492,8 +595,11 @@ export default function FacturasPendientes({ invoices, systemDate, clients = [] 
                           : 'hover:bg-slate-50 dark:hover:bg-slate-900/50'
                       }`}
                     >
-                      {/* Cliente */}
-                      <td className="py-1.5 px-3 font-semibold text-slate-800 dark:text-slate-200 leading-tight">
+                      {/* Cliente (ancho equilibrado y legible) */}
+                      <td 
+                        className="py-1.5 px-3 font-semibold text-slate-800 dark:text-slate-200 leading-tight w-[23%] min-w-[210px] truncate"
+                        title={item.clientName}
+                      >
                         {item.clientName}
                       </td>
 

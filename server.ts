@@ -34,7 +34,7 @@ async function startServer() {
       const response = await fetch(targetUrl, {
         headers: {
           Accept: "application/json",
-          "User-Agent": "ControlDePagos/1.7.0"
+          "User-Agent": "ControlDePagos/1.7.4"
         }
       });
 

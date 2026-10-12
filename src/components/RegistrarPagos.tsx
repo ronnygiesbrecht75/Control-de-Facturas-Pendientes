@@ -7,7 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { List, RowComponentProps } from 'react-window';
 import { Invoice, InvoiceCategory, PaymentMethod, PaymentDetails, Client } from '../types';
 import { formatPYG, formatInvoiceNumber, formatDateDMY, compareInvoiceNumbers } from '../utils/mockData';
-import { Search, CreditCard, CheckCircle2, AlertCircle, RefreshCw, Layers, ArrowUpDown, Banknote, Building2, FileCheck, Calendar, Eye, ChevronDown } from 'lucide-react';
+import { Search, CreditCard, CheckCircle2, AlertCircle, RefreshCw, Layers, ArrowUpDown, ArrowUp, ArrowDown, Banknote, Building2, FileCheck, Calendar, Eye, ChevronDown } from 'lucide-react';
 import InvoiceDetailModal from './InvoiceDetailModal';
 
 type SortOption = 
@@ -19,10 +19,10 @@ type SortOption =
   | 'client-desc';
 
 const sortOptions = [
-  { value: 'num-asc', label: 'Número de factura Menor a Mayor' },
-  { value: 'num-desc', label: 'Número de factura Mayor a Menor' },
-  { value: 'date-desc', label: 'Fecha: Reciente a Antigua' },
-  { value: 'date-asc', label: 'Fecha: Antigua a Reciente' },
+  { value: 'num-asc', label: 'N° Factura / Remisión: Menor a Mayor' },
+  { value: 'num-desc', label: 'N° Factura / Remisión: Mayor a Menor' },
+  { value: 'date-desc', label: 'Fecha Emisión: Reciente a Antigua' },
+  { value: 'date-asc', label: 'Fecha Emisión: Antigua a Reciente' },
   { value: 'client-asc', label: 'Cliente: A a Z' },
   { value: 'client-desc', label: 'Cliente: Z a A' },
 ] as const;
@@ -305,7 +305,7 @@ export default function RegistrarPagos({ invoices, onUpdatePayment, systemDate, 
                 </div>
               </div>
 
-              {/* Selector de Ordenación */}
+              {/* Selector de Ordenación con botón rápido */}
               <div className="relative flex items-center gap-1">
                 <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 whitespace-nowrap">
                   Ordenar:

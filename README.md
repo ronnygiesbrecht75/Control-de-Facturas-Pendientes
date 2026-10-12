@@ -1,6 +1,6 @@
-# Control de Pagos - v1.7.0
+# Control de Pagos - v1.7.4
 
-[![Versión](https://img.shields.io/badge/version-1.7.0-blue.svg)](https://github.com/ronnygiesbrecht75/Control-de-Facturas-Pendientes/releases)
+[![Versión](https://img.shields.io/badge/version-1.7.4-blue.svg)](https://github.com/ronnygiesbrecht75/Control-de-Facturas-Pendientes/releases)
 [![React](https://img.shields.io/badge/React-19-61DAFB.svg)](https://react.dev/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.8-3178C6.svg)](https://www.typescriptlang.org/)
 [![Tailwind CSS](https://img.shields.io/badge/TailwindCSS-4.1-38B2AC.svg)](https://tailwindcss.com/)

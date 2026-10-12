@@ -80,8 +80,9 @@ export function getDaysDifference(dueDateStr: string, todayStr: string): number 
 }
 
 /**
- * Extrae el valor numérico de los últimos 7 dígitos del número de factura.
- * Ejemplo: "0007333" -> 7333 (Cooperativa Fernheim Ltda 0007333).
+ * Extrae el valor numérico del número de factura o remisión.
+ * Soporta números estándar de factura (e.g. "0007333" -> 7333),
+ * remisiones numéricas (e.g. "10543" -> 10543) o cadenas con dígitos.
  */
 export function getInvoiceLast7DigitsValue(numero?: string): number {
   if (!numero) return 0;
@@ -93,20 +94,24 @@ export function getInvoiceLast7DigitsValue(numero?: string): number {
 }
 
 /**
- * Comparador de facturas por los últimos 7 dígitos del número de factura.
+ * Comparador de facturas y remisiones por su número (menor a mayor o mayor a menor).
+ * Reconoce números de facturas (sucursal-caja-numero) y números de remisiones (remisionNumero).
  */
 export function compareInvoiceNumbers(
-  a: { sucursal?: string; caja?: string; numero?: string },
-  b: { sucursal?: string; caja?: string; numero?: string },
+  a: { sucursal?: string; caja?: string; numero?: string; remisionNumero?: string; documentType?: string },
+  b: { sucursal?: string; caja?: string; numero?: string; remisionNumero?: string; documentType?: string },
   ascending: boolean = true
 ): number {
-  const numA = getInvoiceLast7DigitsValue(a.numero);
-  const numB = getInvoiceLast7DigitsValue(b.numero);
+  const numAStr = (a.documentType === 'remision' ? (a.remisionNumero || a.numero) : (a.numero || a.remisionNumero)) || '';
+  const numBStr = (b.documentType === 'remision' ? (b.remisionNumero || b.numero) : (b.numero || b.remisionNumero)) || '';
+
+  const numA = getInvoiceLast7DigitsValue(numAStr);
+  const numB = getInvoiceLast7DigitsValue(numBStr);
   if (numA !== numB) {
     return ascending ? numA - numB : numB - numA;
   }
-  const codeA = `${a.sucursal || ''}-${a.caja || ''}-${a.numero || ''}`;
-  const codeB = `${b.sucursal || ''}-${b.caja || ''}-${b.numero || ''}`;
+  const codeA = `${a.sucursal || ''}-${a.caja || ''}-${numAStr}`;
+  const codeB = `${b.sucursal || ''}-${b.caja || ''}-${numBStr}`;
   const codeComp = codeA.localeCompare(codeB, undefined, { numeric: true });
   return ascending ? codeComp : -codeComp;
 }
