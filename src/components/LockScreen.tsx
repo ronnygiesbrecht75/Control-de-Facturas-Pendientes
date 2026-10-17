@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Lock, LogIn, Fingerprint, Sparkles, AlertCircle } from 'lucide-react';
 import { UserSettings, UserAccount } from '../types';
 import { allPermissionsTrue } from '../utils/initialUsers';
@@ -29,11 +29,29 @@ export default function LockScreen({ settings, users = [], onUnlockWithUser }: L
   const [error, setError] = useState('');
   const [enableBiometricsOnLogin, setEnableBiometricsOnLogin] = useState(false);
 
+  const usernameInputRef = useRef<HTMLInputElement>(null);
+  const passwordInputRef = useRef<HTMLInputElement>(null);
+
   // Biometrics state
   const [supportsBiometrics, setSupportsBiometrics] = useState(false);
   const [storedBio, setStoredBio] = useState<StoredBiometricCredential | null>(null);
   const [isVerifyingBio, setIsVerifyingBio] = useState(false);
   const [bioNotice, setBioNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Foco automático garantizado en el primer cuadro (Usuario) al cargar la pantalla de desbloqueo
+    const timer1 = setTimeout(() => {
+      usernameInputRef.current?.focus();
+    }, 50);
+    const timer2 = setTimeout(() => {
+      usernameInputRef.current?.focus();
+    }, 250);
+
+    return () => {
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+    };
+  }, []);
 
   useEffect(() => {
     isBiometricsSupported().then((supported) => {
@@ -110,6 +128,14 @@ export default function LockScreen({ settings, users = [], onUnlockWithUser }: L
     }
 
     setError('Usuario o contraseña incorrectos. Revisa e intenta de nuevo.');
+    setTimeout(() => {
+      if (!username.trim()) {
+        usernameInputRef.current?.focus();
+      } else {
+        passwordInputRef.current?.focus();
+        passwordInputRef.current?.select();
+      }
+    }, 50);
   };
 
   return (
@@ -201,11 +227,19 @@ export default function LockScreen({ settings, users = [], onUnlockWithUser }: L
                 Usuario
               </label>
               <input
+                ref={usernameInputRef}
+                autoFocus
                 id="lock-username-input"
                 type="text"
                 autoComplete="username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && username.trim()) {
+                    e.preventDefault();
+                    passwordInputRef.current?.focus();
+                  }
+                }}
                 className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-primary-gold focus:border-transparent text-sm transition-colors duration-150"
                 placeholder="Introduzca su usuario"
                 required
@@ -217,6 +251,7 @@ export default function LockScreen({ settings, users = [], onUnlockWithUser }: L
                 Contraseña
               </label>
               <input
+                ref={passwordInputRef}
                 id="lock-password-input"
                 type="password"
                 autoComplete="current-password"

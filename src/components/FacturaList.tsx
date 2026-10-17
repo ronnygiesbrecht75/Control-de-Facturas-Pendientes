@@ -173,18 +173,12 @@ const FacturaRow = ({
         {statusBadge}
       </div>
 
-      {/* F. Pago & Método (anchura minimizada sin espacio sobrante) */}
-      <div className="py-1 px-2 w-[105px] min-w-[100px] shrink-0 text-right whitespace-nowrap">
-        {inv.paid && inv.paymentDate ? (
-          <div className="leading-tight">
-            <span className="font-semibold text-emerald-600 dark:text-emerald-400 text-[11px] block">
-              {formatDateDMY(inv.paymentDate)}
-            </span>
-            <span className="text-[9px] text-slate-500 dark:text-slate-400 font-mono block truncate">
-              {inv.paymentMethod || 'Efectivo'}
-              {inv.paymentDetails?.bankName ? ` - ${inv.paymentDetails.bankName}` : ''}
-            </span>
-          </div>
+      {/* Fecha de Pago (solo la fecha de pago) */}
+      <div className="py-1 px-2 w-[88px] min-w-[88px] shrink-0 text-center font-mono text-[11px] whitespace-nowrap">
+        {inv.paid && (inv.paymentDate || inv.invoiceDate) ? (
+          <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+            {formatDateDMY(inv.paymentDate || inv.invoiceDate)}
+          </span>
         ) : (
           <span className="text-slate-400 text-xs">-</span>
         )}
@@ -728,8 +722,13 @@ export default function FacturaList({
                 {/* Estado (reducido al mínimo) */}
                 <div className="py-2 px-1 w-[100px] min-w-[100px] shrink-0 text-center">Estado</div>
 
-                {/* F. Pago (reducido al mínimo) */}
-                <div className="py-2 px-2 w-[105px] min-w-[100px] shrink-0 text-right">F. Pago</div>
+                {/* F. Pago (solo fecha de pago) */}
+                <div 
+                  title="Fecha de Pago" 
+                  className="py-2 px-2 w-[88px] min-w-[88px] shrink-0 text-center"
+                >
+                  F. Pago
+                </div>
 
                 {/* ¿Pago? */}
                 <div className="py-2 px-1 w-[55px] min-w-[55px] shrink-0 text-center">¿Pago?</div>

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export const CURRENT_APP_VERSION = '1.7.4';
+export const CURRENT_APP_VERSION = '1.7.5';
 
 export interface ReleaseAsset {
   name: string;
@@ -206,13 +206,12 @@ export async function checkForAppUpdates(customRepo?: string): Promise<UpdateInf
     releaseName: `Control de Pagos v${CURRENT_APP_VERSION} (Al Día)`,
     releaseDate: nowStr,
     releaseNotes: [
-      'Versión v1.7.4 instalada y operativa.',
-      'Optimización de tablas: mayor anchura para la columna de Cliente y minimización de Estado y Pago.',
+      'Versión v1.7.5 instalada y operativa.',
+      'Columna de Fecha de Pago simplificada: muestra únicamente la fecha de pago limpia y centrada, con detalles completos accesibles en el botón de Ojo.',
+      'Foco automático en la pantalla de desbloqueo: cursor posicionado inmediatamente en el cuadro de credenciales.',
+      'Optimización de tablas: mayor anchura para la columna de Cliente y minimización de Estado y F. Pago.',
       'Foco automático al cuadro de RUC tras registrar clientes para carga rápida continua.',
-      'Sincronización robusta y automática previa al descargar actualizaciones en 1-clic (Electron autoUpdater).',
-      'Optimización de la interfaz de Ajustes: diseño limpio sin tarjetas redundantes de navegación.',
-      'Sincronización atómica de dispositivos por licencia con visualización de identificadores y liberación granular.',
-      'Validación de licencias robusta con persistencia activa garantizada en modo sin conexión (offline).'
+      'Sincronización robusta y automática previa al descargar actualizaciones en 1-clic (Electron autoUpdater).'
     ],
     htmlUrl: `https://github.com/${repo}/releases`,
     assets: [
