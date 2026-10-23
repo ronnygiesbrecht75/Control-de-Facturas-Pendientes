@@ -28,7 +28,7 @@ export default function Clientes({ clients, onAddClient, onDeleteClient }: Clien
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
   const [clientToDelete, setClientToDelete] = useState<Client | null>(null);
 
-  const itemsPerPage = 12;
+  const [pageSize, setPageSize] = useState<number>(25);
 
   // Next automatic code starting from 1 and incrementing
   const nextCode = clients.reduce((max, c) => Math.max(max, typeof c.code === 'number' ? c.code : 0), 0) + 1;
@@ -128,9 +128,10 @@ export default function Clientes({ clients, onAddClient, onDeleteClient }: Clien
   });
 
   // Pagination calculations
-  const totalPages = Math.ceil(filteredClients.length / itemsPerPage) || 1;
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedClients = filteredClients.slice(startIndex, startIndex + itemsPerPage);
+  const totalPages = Math.ceil(filteredClients.length / pageSize) || 1;
+  const safeCurrentPage = Math.min(currentPage, totalPages);
+  const startIndex = (safeCurrentPage - 1) * pageSize;
+  const paginatedClients = filteredClients.slice(startIndex, startIndex + pageSize);
 
   // Reset page when search term changes
   React.useEffect(() => {
@@ -138,7 +139,7 @@ export default function Clientes({ clients, onAddClient, onDeleteClient }: Clien
   }, [searchTerm]);
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 animate-fade-in">
+    <div className="w-full max-w-[1400px] mx-auto space-y-6 animate-fade-in">
       
       {/* HEADER BANNER */}
       <div className="bg-gradient-to-r from-amber-500 to-amber-600 p-6 rounded-2xl text-slate-950 shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -177,8 +178,8 @@ export default function Clientes({ clients, onAddClient, onDeleteClient }: Clien
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
-        {/* REGISTER CLIENT FORM (LEFT PANEL - col-span-5) */}
-        <div className="lg:col-span-5 bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
+        {/* REGISTER CLIENT FORM (LEFT PANEL - col-span-4 / col-span-5) */}
+        <div className="lg:col-span-5 xl:col-span-4 bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
           <div className="flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-700">
             <UserPlus className="w-5 h-5 text-amber-500" />
             <h3 className="text-sm font-bold font-display uppercase tracking-wider text-slate-800 dark:text-slate-100">
@@ -283,8 +284,8 @@ export default function Clientes({ clients, onAddClient, onDeleteClient }: Clien
           </form>
         </div>
 
-        {/* CLIENTS LIST TABLE (RIGHT PANEL - col-span-7) */}
-        <div className="lg:col-span-7 bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
+        {/* CLIENTS LIST TABLE (RIGHT PANEL - col-span-7 / col-span-8) */}
+        <div className="lg:col-span-7 xl:col-span-8 bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-100 dark:border-slate-700">
             <div className="flex items-center gap-2">
               <Users className="w-5 h-5 text-amber-500" />
@@ -311,54 +312,54 @@ export default function Clientes({ clients, onAddClient, onDeleteClient }: Clien
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-100 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
-                  <th scope="col" className="py-2 px-3 text-center text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest w-16">
+                  <th scope="col" className="py-1 px-2.5 text-center text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest w-14">
                     Cód.
                   </th>
-                  <th scope="col" className="py-2 px-3 text-left text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">
+                  <th scope="col" className="py-1 px-2.5 text-left text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">
                     Nombre del Cliente
                   </th>
-                  <th scope="col" className="py-2 px-3 text-center text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest w-32">
+                  <th scope="col" className="py-1 px-2.5 text-center text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest w-28">
                     RUC / C.I.
                   </th>
-                  <th scope="col" className="py-2 px-3 text-center text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest w-24">
+                  <th scope="col" className="py-1 px-2.5 text-center text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest w-20">
                     Acción
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-150 dark:divide-slate-700 bg-white dark:bg-slate-800">
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50 bg-white dark:bg-slate-800">
                 {paginatedClients.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="py-6 text-center text-xs text-slate-500 dark:text-slate-400 font-mono">
+                    <td colSpan={4} className="py-4 text-center text-xs text-slate-500 dark:text-slate-400 font-mono">
                       No se encontraron clientes que coincidan con la búsqueda.
                     </td>
                   </tr>
                 ) : (
                   paginatedClients.map((client) => (
                     <tr key={client.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-colors">
-                      <td className="py-2 px-3 text-center">
-                        <span className="inline-block px-2 py-0.5 rounded-md font-mono text-xs font-bold bg-amber-100 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                      <td className="py-0.5 px-2.5 text-center">
+                        <span className="inline-block px-1.5 py-0 leading-tight rounded font-mono text-[11px] font-bold bg-amber-100 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
                           #{client.code || '-'}
                         </span>
                       </td>
-                      <td className="py-2 px-3 text-xs font-semibold text-slate-800 dark:text-slate-200">
+                      <td className="py-0.5 px-2.5 text-xs font-semibold text-slate-800 dark:text-slate-200 leading-tight whitespace-nowrap">
                         {client.name}
                       </td>
-                      <td className="py-2 px-3 text-center">
+                      <td className="py-0.5 px-2.5 text-center">
                         {client.ruc ? (
-                          <span className="inline-block font-mono text-xs font-bold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700/60 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-600">
+                          <span className="inline-block font-mono text-[11px] font-bold px-1.5 py-0 leading-tight rounded bg-slate-100 dark:bg-slate-700/60 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-600">
                             {client.ruc}
                           </span>
                         ) : (
-                          <span className="text-slate-400 text-xs">-</span>
+                          <span className="text-slate-400 text-xs leading-tight">-</span>
                         )}
                       </td>
-                      <td className="py-2 px-3 text-center">
+                      <td className="py-0.5 px-2.5 text-center">
                         <button
                           onClick={() => setClientToDelete(client)}
-                          className="py-1 px-2 rounded-lg text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/20 hover:text-rose-700 dark:hover:text-rose-300 transition-all text-xs font-bold inline-flex items-center gap-1 cursor-pointer"
+                          className="py-0.5 px-1.5 rounded-md text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/20 hover:text-rose-700 dark:hover:text-rose-300 transition-all text-[11px] font-medium inline-flex items-center gap-1 cursor-pointer leading-tight"
                           title="Eliminar Cliente"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          <Trash2 className="w-3 h-3" />
                           <span>Eliminar</span>
                         </button>
                       </td>
@@ -367,40 +368,93 @@ export default function Clientes({ clients, onAddClient, onDeleteClient }: Clien
                 )}
               </tbody>
             </table>
-          </div>
 
-          {/* Pagination bar */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between pt-2">
-              <span className="text-[11px] font-mono text-slate-500 dark:text-slate-400">
-                Mostrando {startIndex + 1} - {Math.min(startIndex + itemsPerPage, filteredClients.length)} de {filteredClients.length}
-              </span>
+            {/* Pagination & Items-Per-Page Controls */}
+            {filteredClients.length > 0 && (
+              <div className="bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700 px-4 py-2.5 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs font-semibold text-slate-700 dark:text-slate-300">
+                {/* Page Size Selector */}
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-700 dark:text-slate-300">Mostrar:</span>
+                  <select
+                    id="page-size-select-clientes"
+                    value={pageSize}
+                    onChange={(e) => {
+                      setPageSize(Number(e.target.value));
+                      setCurrentPage(1);
+                    }}
+                    className="bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg px-2.5 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-amber-500 font-bold text-slate-900 dark:text-white cursor-pointer shadow-xs"
+                  >
+                    <option value={10} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-semibold">10 por página</option>
+                    <option value={25} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-semibold">25 por página</option>
+                    <option value={50} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-semibold">50 por página</option>
+                    <option value={100} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-semibold">100 por página</option>
+                    <option value={1000000} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white font-semibold">Todos</option>
+                  </select>
+                  <span className="text-slate-500 dark:text-slate-400 font-mono text-[11px]">
+                    {pageSize >= 1000000 
+                      ? `(Todos los ${filteredClients.length} clientes)`
+                      : `(Mostrando ${filteredClients.length === 0 ? 0 : startIndex + 1}-${Math.min(startIndex + pageSize, filteredClients.length)} de ${filteredClients.length})`
+                    }
+                  </span>
+                </div>
 
-              <div className="flex items-center gap-1.5">
-                <button
-                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                  disabled={currentPage === 1}
-                  className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 disabled:opacity-40 hover:bg-slate-50 dark:hover:bg-slate-900 cursor-pointer disabled:cursor-not-allowed transition-all"
-                  title="Página Anterior"
-                >
-                  <ArrowLeft className="w-3.5 h-3.5" />
-                </button>
-                
-                <span className="text-xs font-mono font-bold text-slate-700 dark:text-slate-300 px-2">
-                  Pág. {currentPage} de {totalPages}
-                </span>
-
-                <button
-                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                  disabled={currentPage === totalPages}
-                  className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 disabled:opacity-40 hover:bg-slate-50 dark:hover:bg-slate-900 cursor-pointer disabled:cursor-not-allowed transition-all"
-                  title="Página Siguiente"
-                >
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
+                {/* Page Navigation Buttons */}
+                {totalPages > 1 && (
+                  <div className="flex items-center gap-1">
+                    <button
+                      id="prev-page-btn-clientes"
+                      onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                      disabled={safeCurrentPage === 1}
+                      className={`px-2.5 py-1 rounded-md border text-xs font-bold transition-all cursor-pointer ${
+                        safeCurrentPage === 1
+                          ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed dark:bg-slate-800 dark:border-slate-700 dark:text-slate-500'
+                          : 'bg-white dark:bg-slate-950 hover:bg-slate-100 dark:hover:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                      }`}
+                    >
+                      Anterior
+                    </button>
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
+                      if (totalPages > 7) {
+                        if (page !== 1 && page !== totalPages && Math.abs(page - safeCurrentPage) > 1) {
+                          if (page === 2 && safeCurrentPage > 3) return <span key="dots-start" className="px-1 text-slate-400">...</span>;
+                          if (page === totalPages - 1 && safeCurrentPage < totalPages - 2) return <span key="dots-end" className="px-1 text-slate-400">...</span>;
+                          return null;
+                        }
+                      }
+                      
+                      const isCurrent = page === safeCurrentPage;
+                      return (
+                        <button
+                          key={page}
+                          id={`page-btn-clientes-${page}`}
+                          onClick={() => setCurrentPage(page)}
+                          className={`w-7 h-7 rounded-md border text-xs font-bold transition-all cursor-pointer ${
+                            isCurrent
+                              ? 'bg-slate-950 dark:bg-amber-400 text-white dark:text-slate-950 border-slate-950 dark:border-amber-400'
+                              : 'bg-white dark:bg-slate-950 hover:bg-slate-100 dark:hover:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      );
+                    })}
+                    <button
+                      id="next-page-btn-clientes"
+                      onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                      disabled={safeCurrentPage === totalPages}
+                      className={`px-2.5 py-1 rounded-md border text-xs font-bold transition-all cursor-pointer ${
+                        safeCurrentPage === totalPages
+                          ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed dark:bg-slate-800 dark:border-slate-700 dark:text-slate-500'
+                          : 'bg-white dark:bg-slate-950 hover:bg-slate-100 dark:hover:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                      }`}
+                    >
+                      Siguiente
+                    </button>
+                  </div>
+                )}
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
 

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export const CURRENT_APP_VERSION = '1.7.5';
+export const CURRENT_APP_VERSION = '1.7.6';
 
 export interface ReleaseAsset {
   name: string;
@@ -206,7 +206,8 @@ export async function checkForAppUpdates(customRepo?: string): Promise<UpdateInf
     releaseName: `Control de Pagos v${CURRENT_APP_VERSION} (Al Día)`,
     releaseDate: nowStr,
     releaseNotes: [
-      'Versión v1.7.5 instalada y operativa.',
+      'Versión v1.7.6 instalada y operativa.',
+      'Tabla de Clientes compacta: altura de las filas reducida en un 50% para maximizar la visibilidad y agilizar la navegación.',
       'Columna de Fecha de Pago simplificada: muestra únicamente la fecha de pago limpia y centrada, con detalles completos accesibles en el botón de Ojo.',
       'Foco automático en la pantalla de desbloqueo: cursor posicionado inmediatamente en el cuadro de credenciales.',
       'Optimización de tablas: mayor anchura para la columna de Cliente y minimización de Estado y F. Pago.',
