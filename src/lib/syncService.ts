@@ -8,11 +8,13 @@ import {
   collection, 
   doc, 
   getDoc,
+  getDocFromServer,
   setDoc, 
   deleteDoc, 
   onSnapshot,
   getDocs,
-  arrayUnion
+  arrayUnion,
+  enableNetwork
 } from './firebase';
 import { Invoice, Client, UserSettings, UserAccount, AppLicense, LicenseValidationResult } from '../types';
 
@@ -204,8 +206,19 @@ export async function validateLicenseInFirebase(licenseKey: string): Promise<Lic
   }
 
   try {
+    try {
+      await enableNetwork(db);
+    } catch {
+      // Ignorar si la red ya estaba habilitada
+    }
+
     const docRef = doc(db, 'licenses', normalizedKey);
-    const docSnap = await getDoc(docRef);
+    let docSnap;
+    try {
+      docSnap = await getDocFromServer(docRef);
+    } catch {
+      docSnap = await getDoc(docRef);
+    }
 
     if (!docSnap.exists()) {
       return { 
@@ -259,10 +272,14 @@ export async function validateLicenseInFirebase(licenseKey: string): Promise<Lic
     };
   } catch (err: any) {
     console.error('Error validating license in Firebase:', err);
+    const isOffline = (typeof navigator !== 'undefined' && !navigator.onLine) || 
+      (err?.message && (err.message.toLowerCase().includes('offline') || err.message.toLowerCase().includes('unavailable') || err.message.toLowerCase().includes('network')));
     return {
       valid: false,
       isNetworkError: true,
-      message: `Error al conectar con el servidor de licencias: ${err?.message || 'Verifique su conexión a internet.'}`
+      message: isOffline
+        ? 'El dispositivo está sin conexión a internet. Para activar una nueva licencia en esta tablet se requiere conectarla a Wi-Fi o datos móviles por única vez. Una vez activada, funcionará offline.'
+        : `Error al conectar con el servidor de licencias: ${err?.message || 'Verifique su conexión a internet.'}`
     };
   }
 }

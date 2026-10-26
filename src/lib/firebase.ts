@@ -5,36 +5,52 @@
 
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { 
-  getFirestore, 
+  initializeFirestore,
+  getFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
   collection, 
   doc, 
-  getDoc,
+  getDoc, 
+  getDocFromServer,
   setDoc, 
-  updateDoc,
+  updateDoc, 
   deleteDoc, 
   onSnapshot, 
-  getDocs,
+  getDocs, 
   arrayUnion,
-  enableIndexedDbPersistence 
+  enableNetwork 
 } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
 export const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
 const dbId = (firebaseConfig as any).firestoreDatabaseId;
-export const db = dbId ? getFirestore(app, dbId) : getFirestore(app);
 
-// Enable offline persistence for seamless PC & Mobile experience
+let firestoreInstance;
 try {
-  enableIndexedDbPersistence(db).catch((err) => {
-    if (err.code === 'failed-precondition') {
-      // Multiple tabs open, persistence can only be enabled in one tab at a time.
-    } else if (err.code === 'unimplemented') {
-      // The current browser does not support persistence
-    }
-  });
+  firestoreInstance = initializeFirestore(app, {
+    experimentalAutoDetectLongPolling: true,
+    localCache: persistentLocalCache({
+      tabManager: persistentMultipleTabManager()
+    })
+  }, dbId);
 } catch (e) {
-  // Ignore error
+  firestoreInstance = dbId ? getFirestore(app, dbId) : getFirestore(app);
 }
 
-export { collection, doc, getDoc, setDoc, updateDoc, deleteDoc, onSnapshot, getDocs, arrayUnion };
+export const db = firestoreInstance;
+
+export { 
+  collection, 
+  doc, 
+  getDoc, 
+  getDocFromServer,
+  setDoc, 
+  updateDoc, 
+  deleteDoc, 
+  onSnapshot, 
+  getDocs, 
+  arrayUnion,
+  enableNetwork 
+};
