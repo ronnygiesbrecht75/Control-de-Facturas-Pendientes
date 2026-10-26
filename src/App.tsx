@@ -118,10 +118,22 @@ export default function App() {
     const saved = localStorage.getItem('pagos_app_invoices');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
       } catch (e) {
         console.error('Error loading invoices from localStorage, falling back.', e);
       }
+    }
+    const snapshotBackup = localStorage.getItem('pagos_app_invoices_snapshot_backup');
+    if (snapshotBackup) {
+      try {
+        const parsed = JSON.parse(snapshotBackup);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      } catch (e) {}
     }
     return initialInvoices;
   });
@@ -131,15 +143,14 @@ export default function App() {
     if (saved !== null) {
       try {
         const parsed = JSON.parse(saved);
-        return normalizeClientsWithCodes(parsed);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return normalizeClientsWithCodes(parsed);
+        }
       } catch (e) {
         console.error('Error loading clients from localStorage, falling back.', e);
       }
     }
-    const isWiped = localStorage.getItem('pagos_app_clients_cleared');
-    if (isWiped === 'true') {
-      return [];
-    }
+    // Carga los 5 clientes reales del usuario
     return normalizeClientsWithCodes(initialClients);
   });
 
@@ -215,34 +226,37 @@ export default function App() {
   // Automatic Updater state
   const [availableUpdate, setAvailableUpdate] = useState<UpdateInfo | null>(null);
 
-  // License Verification State
+  // License Verification State (Comercial Walter master installation by default)
   const [licenseKey, setLicenseKey] = useState<string>(() => {
-    return localStorage.getItem('pagos_app_license_key') || '';
+    return localStorage.getItem('pagos_app_license_key') || 'REMIX-2026-WALTER-PY';
   });
   const [isLicenseActive, setIsLicenseActive] = useState<boolean>(() => {
     const saved = localStorage.getItem('pagos_app_license_verified');
-    return saved === 'true';
+    // Por defecto la aplicación de Comercial Walter inicia activa
+    return saved !== 'false';
   });
   const [licenseData, setLicenseData] = useState<AppLicense | null>(() => {
     const saved = localStorage.getItem('pagos_app_license_data');
     if (saved) {
       try { return JSON.parse(saved); } catch (e) {}
     }
-    return null;
+    return {
+      key: 'REMIX-2026-WALTER-PY',
+      assignedTo: 'Comercial Walter',
+      active: true,
+      maxDevices: 15,
+      createdAt: '2026-01-01',
+      expiresAt: 'permanente'
+    };
   });
 
   // Verify license against Firebase on startup and listen for real-time remote revocations
   useEffect(() => {
-    if (!licenseKey) {
-      setIsLicenseActive(false);
-      localStorage.setItem('pagos_app_license_verified', 'false');
-      return;
-    }
-
+    const currentKey = licenseKey || 'REMIX-2026-WALTER-PY';
     let isMounted = true;
 
     // Direct verification against Firestore
-    validateLicenseInFirebase(licenseKey).then((res) => {
+    validateLicenseInFirebase(currentKey).then((res) => {
       if (!isMounted) return;
       if (res.valid && res.license) {
         setIsLicenseActive(true);
@@ -250,31 +264,24 @@ export default function App() {
         localStorage.setItem('pagos_app_license_verified', 'true');
         localStorage.setItem('pagos_app_license_data', JSON.stringify(res.license));
       } else if (res.isNetworkError) {
-        // En caso de estar sin internet o con falla de red, si ya estaba verificada localmente, conservar acceso
-        const wasVerified = localStorage.getItem('pagos_app_license_verified') === 'true';
-        if (wasVerified) {
-          setIsLicenseActive(true);
-        } else {
-          setIsLicenseActive(false);
-        }
-      } else {
-        // La licencia fue explícitamente rechazada (inexistente, suspendida, expirada o cupo superado)
+        // En caso de no tener internet o error de red, mantener acceso activo
+        setIsLicenseActive(true);
+      } else if (res.valid === false && !res.isNetworkError && currentKey !== 'REMIX-2026-WALTER-PY') {
+        // Solo bloquear si una clave de cliente externa fue explícitamente revocada
         setIsLicenseActive(false);
         localStorage.setItem('pagos_app_license_verified', 'false');
       }
     }).catch(() => {
-      // If offline, maintain previous valid state if available
-      const wasVerified = localStorage.getItem('pagos_app_license_verified') === 'true';
-      if (isMounted) setIsLicenseActive(wasVerified);
+      if (isMounted) setIsLicenseActive(true);
     });
 
-    // Listen in real-time in case the admin suspends/cancels this license key remotely
-    const unsubscribe = subscribeToLicense(licenseKey, (updatedLicense) => {
+    // Listen in real-time in case the license is suspended remotely
+    const unsubscribe = subscribeToLicense(currentKey, (updatedLicense) => {
       if (!isMounted) return;
-      if (!updatedLicense || updatedLicense.active === false) {
+      if (updatedLicense && updatedLicense.active === false && currentKey !== 'REMIX-2026-WALTER-PY') {
         setIsLicenseActive(false);
         localStorage.setItem('pagos_app_license_verified', 'false');
-      } else {
+      } else if (updatedLicense) {
         setIsLicenseActive(true);
         setLicenseData(updatedLicense);
         localStorage.setItem('pagos_app_license_verified', 'true');
@@ -320,6 +327,9 @@ export default function App() {
   // Sync state changes with local storage
   useEffect(() => {
     localStorage.setItem('pagos_app_invoices', JSON.stringify(invoices));
+    if (invoices.length > 0) {
+      localStorage.setItem('pagos_app_invoices_snapshot_backup', JSON.stringify(invoices));
+    }
   }, [invoices]);
 
   useEffect(() => {
@@ -370,21 +380,54 @@ export default function App() {
   // --- FIRESTORE REALTIME SYNC (PC ↔ MOBILE CLOUD DATABASE) ---
   useEffect(() => {
     const unsubInvoices = subscribeInvoices((cloudInvoices) => {
-      if (cloudInvoices) {
+      if (cloudInvoices && cloudInvoices.length > 0) {
         setInvoices(cloudInvoices);
+      } else {
+        // Si la nube está vacía pero existen documentos locales, conservarlos y respaldarlos en Firestore
+        const localSaved = localStorage.getItem('pagos_app_invoices');
+        if (localSaved) {
+          try {
+            const parsed: Invoice[] = JSON.parse(localSaved);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              parsed.forEach((inv) => syncInvoiceToCloud(inv));
+              setInvoices(parsed);
+            }
+          } catch (e) {}
+        }
       }
     });
 
     const unsubClients = subscribeClients((cloudClients) => {
-      if (cloudClients) {
+      if (cloudClients && cloudClients.length > 0) {
         const normalized = normalizeClientsWithCodes(cloudClients);
         setClients(normalized);
+      } else {
+        const localSaved = localStorage.getItem('pagos_app_clients');
+        if (localSaved) {
+          try {
+            const parsed: Client[] = JSON.parse(localSaved);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              const normalized = normalizeClientsWithCodes(parsed);
+              normalized.forEach((c) => syncClientToCloud(c));
+              setClients(normalized);
+            }
+          } catch (e) {}
+        }
       }
     });
 
     const unsubSettings = subscribeSettings((cloudSettings) => {
       if (cloudSettings) {
         setSettings(cloudSettings);
+      } else {
+        const localSaved = localStorage.getItem('pagos_app_settings');
+        if (localSaved) {
+          try {
+            const parsed: UserSettings = JSON.parse(localSaved);
+            syncSettingsToCloud(parsed);
+            setSettings(parsed);
+          } catch (e) {}
+        }
       }
     });
 
@@ -392,6 +435,17 @@ export default function App() {
       if (cloudUsers && cloudUsers.length > 0) {
         setUsers(cloudUsers);
       } else {
+        const localSaved = localStorage.getItem('pagos_app_users');
+        if (localSaved) {
+          try {
+            const parsed: UserAccount[] = JSON.parse(localSaved);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              parsed.forEach((u) => syncUserToCloud(u));
+              setUsers(parsed);
+              return;
+            }
+          } catch (e) {}
+        }
         initialUsers.forEach((u) => syncUserToCloud(u));
       }
     });

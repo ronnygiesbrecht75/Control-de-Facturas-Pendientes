@@ -23,8 +23,6 @@ export default function UserModal({
   onSave,
   onClose
 }: UserModalProps) {
-  if (!isOpen) return null;
-
   const isEditing = !!userToEdit;
 
   const [username, setUsername] = useState('');
@@ -59,6 +57,8 @@ export default function UserModal({
     }
     setErrorMsg(null);
   }, [userToEdit, isOpen]);
+
+  if (!isOpen) return null;
 
   const handleTogglePermission = (key: keyof UserPermissions) => {
     setPermissions((prev) => ({

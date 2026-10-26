@@ -24,38 +24,36 @@ export default function EditInvoiceModal({
   onSave,
   onClose
 }: EditInvoiceModalProps) {
-  if (!isOpen || !invoice) return null;
-
-  const isRemision = invoice.documentType === 'remision';
+  const isRemision = invoice?.documentType === 'remision';
 
   // Form states
-  const [category, setCategory] = useState<InvoiceCategory>(invoice.category);
-  const [clientName, setClientName] = useState(invoice.clientName);
-  const [clientRuc, setClientRuc] = useState(invoice.clientRuc || '');
-  const [sucursal, setSucursal] = useState(invoice.sucursal);
-  const [caja, setCaja] = useState(invoice.caja);
-  const [numero, setNumero] = useState(invoice.numero);
-  const [amount, setAmount] = useState<number>(invoice.amount);
-  const [invoiceDate, setInvoiceDate] = useState(invoice.invoiceDate);
-  const [terms, setTerms] = useState<number>(invoice.terms || 0);
+  const [category, setCategory] = useState<InvoiceCategory>(invoice?.category || 'Facturas');
+  const [clientName, setClientName] = useState(invoice?.clientName || '');
+  const [clientRuc, setClientRuc] = useState(invoice?.clientRuc || '');
+  const [sucursal, setSucursal] = useState(invoice?.sucursal || '001');
+  const [caja, setCaja] = useState(invoice?.caja || '009');
+  const [numero, setNumero] = useState(invoice?.numero || '');
+  const [amount, setAmount] = useState<number>(invoice?.amount || 0);
+  const [invoiceDate, setInvoiceDate] = useState(invoice?.invoiceDate || '');
+  const [terms, setTerms] = useState<number>(invoice?.terms || 0);
 
   // Paid state
-  const [paid, setPaid] = useState<boolean>(invoice.paid);
-  const [paidAmount, setPaidAmount] = useState<number>(invoice.paidAmount ?? invoice.amount);
-  const [paymentDate, setPaymentDate] = useState<string>(invoice.paymentDate ?? invoice.invoiceDate);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(invoice.paymentMethod ?? 'Efectivo');
+  const [paid, setPaid] = useState<boolean>(invoice?.paid || false);
+  const [paidAmount, setPaidAmount] = useState<number>(invoice?.paidAmount ?? (invoice?.amount || 0));
+  const [paymentDate, setPaymentDate] = useState<string>(invoice?.paymentDate ?? (invoice?.invoiceDate || ''));
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(invoice?.paymentMethod ?? 'Efectivo');
 
   // Details
-  const [bankName, setBankName] = useState<string>(invoice.paymentDetails?.bankName ?? '');
-  const [transferReceipt, setTransferReceipt] = useState<string>(invoice.paymentDetails?.transferReceipt ?? '');
-  const [checkNumber, setCheckNumber] = useState<string>(invoice.paymentDetails?.checkNumber ?? '');
-  const [checkDepositDate, setCheckDepositDate] = useState<string>(invoice.paymentDetails?.checkDepositDate ?? '');
+  const [bankName, setBankName] = useState<string>(invoice?.paymentDetails?.bankName ?? '');
+  const [transferReceipt, setTransferReceipt] = useState<string>(invoice?.paymentDetails?.transferReceipt ?? '');
+  const [checkNumber, setCheckNumber] = useState<string>(invoice?.paymentDetails?.checkNumber ?? '');
+  const [checkDepositDate, setCheckDepositDate] = useState<string>(invoice?.paymentDetails?.checkDepositDate ?? '');
 
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Re-sync when invoice changes
   useEffect(() => {
-    if (invoice) {
+    if (invoice && isOpen) {
       setCategory(invoice.category);
       setClientName(invoice.clientName);
       setClientRuc(invoice.clientRuc || '');
@@ -75,7 +73,9 @@ export default function EditInvoiceModal({
       setCheckDepositDate(invoice.paymentDetails?.checkDepositDate ?? '');
       setErrorMsg(null);
     }
-  }, [invoice]);
+  }, [invoice, isOpen]);
+
+  if (!isOpen || !invoice) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

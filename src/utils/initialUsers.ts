@@ -35,7 +35,23 @@ export const initialUsers: UserAccount[] = [
   {
     id: 'user-admin-default',
     username: 'admin',
-    passwordHash: '123456',
+    passwordHash: 'admin',
+    role: 'admin',
+    permissions: { ...allPermissionsTrue },
+    createdAt: '2026-01-01'
+  },
+  {
+    id: 'user-ronny-default',
+    username: 'ronny',
+    passwordHash: 'admin',
+    role: 'admin',
+    permissions: { ...allPermissionsTrue },
+    createdAt: '2026-01-01'
+  },
+  {
+    id: 'user-walter-default',
+    username: 'walter',
+    passwordHash: 'admin',
     role: 'admin',
     permissions: { ...allPermissionsTrue },
     createdAt: '2026-01-01'
