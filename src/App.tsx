@@ -27,6 +27,7 @@ import {
   initialUsers,
   allPermissionsTrue
 } from './utils/initialUsers';
+import { formatRuc } from './utils/rucService';
 
 import { 
   subscribeInvoices, 
@@ -499,6 +500,73 @@ export default function App() {
   const handleDeleteClient = (id: string) => {
     setClients(prev => prev.filter(c => c.id !== id));
     removeClientFromCloud(id);
+  };
+
+  const handleEditClient = (
+    updatedClient: Client, 
+    oldClient: Client, 
+    updateInvoices: boolean = true
+  ): boolean | string => {
+    const cleanName = updatedClient.name.trim();
+    if (!cleanName) {
+      return 'El nombre del cliente no puede estar vacío.';
+    }
+
+    // Verify if another client already has this name
+    const existsName = clients.some(
+      (c) => c.id !== updatedClient.id && c.name.trim().toLowerCase() === cleanName.toLowerCase()
+    );
+    if (existsName) {
+      return 'Ya existe otro cliente con este mismo nombre.';
+    }
+
+    // Verify if another client already has this code (if code provided)
+    if (typeof updatedClient.code === 'number') {
+      const existsCode = clients.some(
+        (c) => c.id !== updatedClient.id && c.code === updatedClient.code
+      );
+      if (existsCode) {
+        return `Ya existe otro cliente con el código #${updatedClient.code}.`;
+      }
+    }
+
+    const finalClient: Client = {
+      ...updatedClient,
+      name: cleanName,
+      ruc: updatedClient.ruc?.trim() ? formatRuc(updatedClient.ruc.trim()) : undefined
+    };
+
+    setClients((prev) =>
+      prev.map((c) => (c.id === finalClient.id ? finalClient : c))
+    );
+    syncClientToCloud(finalClient);
+
+    // If updateInvoices is requested, update existing invoices referencing this client
+    if (updateInvoices) {
+      const oldNameLower = oldClient.name.trim().toLowerCase();
+      const oldCode = oldClient.code;
+
+      setInvoices((prev) =>
+        prev.map((inv) => {
+          const matchesName = inv.clientName.trim().toLowerCase() === oldNameLower;
+          const matchesCode = typeof oldCode === 'number' && typeof inv.clientCode === 'number' && inv.clientCode === oldCode;
+
+          if (matchesName || matchesCode) {
+            const updatedInv: Invoice = {
+              ...inv,
+              clientName: finalClient.name,
+              clientCode: finalClient.code,
+              clientRuc: finalClient.ruc
+            };
+            syncInvoiceToCloud(updatedInv);
+            return updatedInv;
+          }
+          return inv;
+        })
+      );
+    }
+
+    return true;
   };
 
   const handleClearAllInvoices = async () => {
@@ -1238,6 +1306,7 @@ export default function App() {
               <Clientes 
                 clients={clients}
                 onAddClient={handleAddClient}
+                onEditClient={handleEditClient}
                 onDeleteClient={handleDeleteClient}
               />
             )}

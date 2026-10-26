@@ -5,17 +5,19 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Client } from '../types';
-import { Users, UserPlus, Search, Trash2, ArrowLeft, ArrowRight, Check, AlertCircle, Loader2, Sparkles } from 'lucide-react';
+import { Users, UserPlus, Search, Trash2, Edit3, ArrowLeft, ArrowRight, Check, AlertCircle, Loader2, Sparkles } from 'lucide-react';
 import ConfirmModal from './ConfirmModal';
+import EditClientModal from './EditClientModal';
 import { lookupRucParaguay, formatRuc } from '../utils/rucService';
 
 interface ClientesProps {
   clients: Client[];
   onAddClient: (name: string, ruc?: string) => boolean | string;
+  onEditClient?: (updatedClient: Client, oldClient: Client, updateInvoices: boolean) => boolean | string;
   onDeleteClient: (id: string) => void;
 }
 
-export default function Clientes({ clients, onAddClient, onDeleteClient }: ClientesProps) {
+export default function Clientes({ clients, onAddClient, onEditClient, onDeleteClient }: ClientesProps) {
   const clientInputRef = useRef<HTMLInputElement>(null);
   const rucInputRef = useRef<HTMLInputElement>(null);
   const [newClientName, setNewClientName] = useState('');
@@ -27,6 +29,7 @@ export default function Clientes({ clients, onAddClient, onDeleteClient }: Clien
   const [currentPage, setCurrentPage] = useState(1);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; msg: string } | null>(null);
   const [clientToDelete, setClientToDelete] = useState<Client | null>(null);
+  const [clientToEdit, setClientToEdit] = useState<Client | null>(null);
 
   const [pageSize, setPageSize] = useState<number>(25);
 
@@ -141,8 +144,8 @@ export default function Clientes({ clients, onAddClient, onDeleteClient }: Clien
   return (
     <div className="w-full max-w-[1400px] mx-auto space-y-6 animate-fade-in">
       
-      {/* HEADER BANNER */}
-      <div className="bg-gradient-to-r from-amber-500 to-amber-600 p-6 rounded-2xl text-slate-950 shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* HEADER BANNER - ORANGE ACCENT */}
+      <div className="bg-[#f08000] p-6 rounded-2xl text-slate-950 shadow-md flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="bg-slate-950 text-amber-400 p-2.5 rounded-xl shadow-lg">
             <Users className="w-6 h-6" />
@@ -151,12 +154,12 @@ export default function Clientes({ clients, onAddClient, onDeleteClient }: Clien
             <h2 className="text-xl font-black font-display tracking-tight text-slate-950">
               Base de Datos de Clientes
             </h2>
-            <p className="text-xs font-bold text-slate-900/80">
+            <p className="text-xs font-bold text-slate-950/80">
               Administre clientes y RUC de Comercial Walter con buscador oficial SET/DNIT
             </p>
           </div>
         </div>
-        <div className="bg-white/20 backdrop-blur-xs py-1.5 px-4 rounded-full border border-white/10 font-mono text-xs font-bold">
+        <div className="bg-black/15 backdrop-blur-xs py-1.5 px-4 rounded-full border border-black/10 font-mono text-xs font-bold text-slate-950">
           Total: {clients.length} Clientes
         </div>
       </div>
@@ -178,8 +181,8 @@ export default function Clientes({ clients, onAddClient, onDeleteClient }: Clien
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
-        {/* REGISTER CLIENT FORM (LEFT PANEL - col-span-4 / col-span-5) */}
-        <div className="lg:col-span-5 xl:col-span-4 bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
+        {/* REGISTER CLIENT FORM (LEFT PANEL - FIXED / STICKY) */}
+        <div className="lg:col-span-5 xl:col-span-4 lg:sticky lg:top-4 self-start bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
           <div className="flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-700">
             <UserPlus className="w-5 h-5 text-amber-500" />
             <h3 className="text-sm font-bold font-display uppercase tracking-wider text-slate-800 dark:text-slate-100">
@@ -307,25 +310,27 @@ export default function Clientes({ clients, onAddClient, onDeleteClient }: Clien
             </div>
           </div>
 
-          {/* Table */}
-          <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-100 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
-                  <th scope="col" className="py-1 px-2.5 text-center text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest w-14">
-                    Cód.
-                  </th>
-                  <th scope="col" className="py-1 px-2.5 text-left text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">
-                    Nombre del Cliente
-                  </th>
-                  <th scope="col" className="py-1 px-2.5 text-center text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest w-28">
-                    RUC / C.I.
-                  </th>
-                  <th scope="col" className="py-1 px-2.5 text-center text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest w-20">
-                    Acción
-                  </th>
-                </tr>
-              </thead>
+          {/* Table Container with independent scrolling */}
+          <div className="rounded-xl border border-slate-200 dark:border-slate-700 flex flex-col overflow-hidden shadow-xs">
+            {/* Scrollable table container: only this area scrolls when navigating clients */}
+            <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-320px)] min-h-[300px]">
+              <table className="w-full text-left border-collapse">
+                <thead className="sticky top-0 z-10 shadow-xs">
+                  <tr className="bg-slate-100 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700">
+                    <th scope="col" className="py-2 px-2.5 text-center text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest w-14 bg-slate-100 dark:bg-slate-900">
+                      Cód.
+                    </th>
+                    <th scope="col" className="py-2 px-2.5 text-left text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest bg-slate-100 dark:bg-slate-900">
+                      Nombre del Cliente
+                    </th>
+                    <th scope="col" className="py-2 px-2.5 text-center text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest w-28 bg-slate-100 dark:bg-slate-900">
+                      RUC / C.I.
+                    </th>
+                    <th scope="col" className="py-2 px-2.5 text-center text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest w-36 bg-slate-100 dark:bg-slate-900">
+                      Acciones
+                    </th>
+                  </tr>
+                </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50 bg-white dark:bg-slate-800">
                 {paginatedClients.length === 0 ? (
                   <tr>
@@ -353,23 +358,34 @@ export default function Clientes({ clients, onAddClient, onDeleteClient }: Clien
                           <span className="text-slate-400 text-xs leading-tight">-</span>
                         )}
                       </td>
-                      <td className="py-0.5 px-2.5 text-center">
-                        <button
-                          onClick={() => setClientToDelete(client)}
-                          className="py-0.5 px-1.5 rounded-md text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/20 hover:text-rose-700 dark:hover:text-rose-300 transition-all text-[11px] font-medium inline-flex items-center gap-1 cursor-pointer leading-tight"
-                          title="Eliminar Cliente"
-                        >
-                          <Trash2 className="w-3 h-3" />
-                          <span>Eliminar</span>
-                        </button>
+                      <td className="py-0.5 px-2.5 text-center whitespace-nowrap">
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            onClick={() => setClientToEdit(client)}
+                            className="py-0.5 px-2 rounded-md text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 hover:text-amber-700 dark:hover:text-amber-300 transition-all text-[11px] font-semibold inline-flex items-center gap-1 cursor-pointer leading-tight border border-amber-200/60 dark:border-amber-800/60 shadow-2xs"
+                            title="Editar Datos del Cliente"
+                          >
+                            <Edit3 className="w-3 h-3" />
+                            <span>Editar</span>
+                          </button>
+                          <button
+                            onClick={() => setClientToDelete(client)}
+                            className="py-0.5 px-1.5 rounded-md text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/20 hover:text-rose-700 dark:hover:text-rose-300 transition-all text-[11px] font-medium inline-flex items-center gap-1 cursor-pointer leading-tight border border-rose-200/50 dark:border-rose-900/30"
+                            title="Eliminar Cliente"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            <span>Eliminar</span>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))
                 )}
               </tbody>
             </table>
+          </div>
 
-            {/* Pagination & Items-Per-Page Controls */}
+          {/* Pagination & Items-Per-Page Controls */}
             {filteredClients.length > 0 && (
               <div className="bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-700 px-4 py-2.5 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs font-semibold text-slate-700 dark:text-slate-300">
                 {/* Page Size Selector */}
@@ -479,6 +495,31 @@ export default function Clientes({ clients, onAddClient, onDeleteClient }: Clien
           }
         }}
         onClose={() => setClientToDelete(null)}
+      />
+
+      {/* Edit Client Modal */}
+      <EditClientModal
+        isOpen={!!clientToEdit}
+        client={clientToEdit}
+        clients={clients}
+        onSave={(updatedClient, updateInvoices) => {
+          if (!clientToEdit) return false;
+          if (onEditClient) {
+            const res = onEditClient(updatedClient, clientToEdit, updateInvoices);
+            if (res === true) {
+              setNotification({ 
+                type: 'success', 
+                msg: `Cliente "${updatedClient.name}" actualizado correctamente.` 
+              });
+              setClientToEdit(null);
+              setTimeout(() => setNotification(null), 3500);
+              return true;
+            }
+            return res;
+          }
+          return false;
+        }}
+        onClose={() => setClientToEdit(null)}
       />
     </div>
   );

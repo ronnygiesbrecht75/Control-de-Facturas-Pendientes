@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export const CURRENT_APP_VERSION = '1.7.6';
+export const CURRENT_APP_VERSION = '1.7.7';
 
 export interface ReleaseAsset {
   name: string;
@@ -206,13 +206,14 @@ export async function checkForAppUpdates(customRepo?: string): Promise<UpdateInf
     releaseName: `Control de Pagos v${CURRENT_APP_VERSION} (Al Día)`,
     releaseDate: nowStr,
     releaseNotes: [
-      'Versión v1.7.6 instalada y operativa.',
-      'Tabla de Clientes compacta: altura de las filas reducida en un 50% para maximizar la visibilidad y agilizar la navegación.',
-      'Columna de Fecha de Pago simplificada: muestra únicamente la fecha de pago limpia y centrada, con detalles completos accesibles en el botón de Ojo.',
-      'Foco automático en la pantalla de desbloqueo: cursor posicionado inmediatamente en el cuadro de credenciales.',
-      'Optimización de tablas: mayor anchura para la columna de Cliente y minimización de Estado y F. Pago.',
-      'Foco automático al cuadro de RUC tras registrar clientes para carga rápida continua.',
-      'Sincronización robusta y automática previa al descargar actualizaciones en 1-clic (Electron autoUpdater).'
+      'Versión v1.7.7 instalada y operativa.',
+      'Edición de Clientes: nuevo botón y modal para editar RUC y Razón Social de clientes registrados con sincronización automática en facturas.',
+      'Paginación configurable en la Lista de Clientes: selector para elegir cuántos clientes ver por página (10, 25, 50, 100 o Todos).',
+      'Líneas de tabla optimizadas con tonalidad gris suave y armónica.',
+      'Ampliación del ancho de columnas para evitar saltos de línea en nombres de clientes.',
+      'Tabla de Clientes compacta: altura de filas reducida un 50% para mayor productividad visual.',
+      'Columna Fecha de Pago limpia mostrando sólo la fecha, con detalles completos en el visor (ícono de ojo).',
+      'Foco automático en la pantalla de desbloqueo al abrir el sistema.'
     ],
     htmlUrl: `https://github.com/${repo}/releases`,
     assets: [
