@@ -40,6 +40,7 @@ export default function RegistrarFactura({ onAddInvoice, systemDate, clients = [
   const [clientRuc, setClientRuc] = useState<string>('');
   const [isSearchingRuc, setIsSearchingRuc] = useState<boolean>(false);
   const [rucSuccessMsg, setRucSuccessMsg] = useState<string | null>(null);
+  const [rucLookupAttempted, setRucLookupAttempted] = useState<boolean>(false);
   const clientRucInputRef = useRef<HTMLInputElement>(null);
   
   // Client search modal state (F5)
@@ -213,15 +214,10 @@ export default function RegistrarFactura({ onAddInvoice, systemDate, clients = [
       e.preventDefault();
       const val = clientCode.trim();
       if (!val) {
-        if (clientName.trim()) {
-          sucursalInputRef.current?.focus();
-          sucursalInputRef.current?.select();
-        } else {
-          setNotification({
-            type: 'error',
-            message: 'Ingrese el código del cliente o presione [F5] para buscar.'
-          });
-        }
+        // Si el cuadro de Cód. está vacío, avanzar directamente al cuadro de Nombre sin bloquear ni dar error
+        setNotification(null);
+        clientInputRef.current?.focus();
+        clientInputRef.current?.select();
         return;
       }
 
@@ -233,13 +229,16 @@ export default function RegistrarFactura({ onAddInvoice, systemDate, clients = [
         setClientRuc(found.ruc || '');
         setRucSuccessMsg(found.ruc ? `✓ RUC: ${found.ruc}` : null);
         setNotification(null);
-        sucursalInputRef.current?.focus();
-        sucursalInputRef.current?.select();
+        // Avanzar al cuadro de Nombre para permitir edición o avanzar con Enter
+        clientInputRef.current?.focus();
+        clientInputRef.current?.select();
       } else {
         setNotification({
           type: 'error',
-          message: `El código #${val} no existe en clientes. Presione [F5] para buscar.`
+          message: `El código #${val} no existe en clientes. Escriba el nombre o presione [F5] para buscar.`
         });
+        clientInputRef.current?.focus();
+        clientInputRef.current?.select();
       }
     } else if (e.key === 'F5') {
       e.preventDefault();
@@ -255,10 +254,15 @@ export default function RegistrarFactura({ onAddInvoice, systemDate, clients = [
         const found = clients.find((c) => c.name.toLowerCase() === clientName.trim().toLowerCase());
         if (found && typeof found.code === 'number') {
           setClientCode(String(found.code));
+          if (!clientRuc && found.ruc) {
+            setClientRuc(found.ruc);
+            setRucSuccessMsg(`✓ RUC: ${found.ruc}`);
+          }
         }
       }
-      sucursalInputRef.current?.focus();
-      sucursalInputRef.current?.select();
+      // Con otro Enter avanzar al cuadro de RUC
+      clientRucInputRef.current?.focus();
+      clientRucInputRef.current?.select();
     } else if (e.key === 'F5') {
       e.preventDefault();
       e.stopPropagation();
@@ -527,11 +531,19 @@ export default function RegistrarFactura({ onAddInvoice, systemDate, clients = [
                   onChange={(e) => {
                     setClientRuc(e.target.value);
                     setRucSuccessMsg(null);
+                    setRucLookupAttempted(false);
                   }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
                       e.preventDefault();
-                      handleLookupRuc();
+                      const rawRuc = clientRuc.trim();
+                      if (!rawRuc || rucSuccessMsg || rucLookupAttempted) {
+                        sucursalInputRef.current?.focus();
+                        sucursalInputRef.current?.select();
+                      } else {
+                        setRucLookupAttempted(true);
+                        handleLookupRuc();
+                      }
                     }
                   }}
                   className="flex-1 px-2.5 py-1.5 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500 font-mono text-xs font-bold"
