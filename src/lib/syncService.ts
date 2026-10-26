@@ -289,7 +289,13 @@ export async function saveLicenseToCloud(license: AppLicense) {
   try {
     const normalizedKey = normalizeLicenseKey(license.key);
     const docRef = doc(db, 'licenses', normalizedKey);
-    await setDoc(docRef, sanitizeData({ ...license, key: normalizedKey }), { merge: true });
+    const writePromise = setDoc(docRef, sanitizeData({ ...license, key: normalizedKey }), { merge: true });
+    
+    // Firestore guarda localmente en IndexedDB al instante. Si la conexión a la nube
+    // tiene latencia alta, este límite de 2.5s evita que la pantalla se quede colgada
+    // mientras Firestore completa la sincronización en segundo plano.
+    const timeoutFallback = new Promise<void>((resolve) => setTimeout(resolve, 2500));
+    await Promise.race([writePromise, timeoutFallback]);
     return true;
   } catch (e) {
     console.error('Failed to save license to cloud:', e);
