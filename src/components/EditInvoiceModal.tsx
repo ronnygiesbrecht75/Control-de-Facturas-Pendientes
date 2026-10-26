@@ -7,7 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { Invoice, InvoiceCategory, PaymentMethod, Client } from '../types';
 import { formatPYG, formatInvoiceNumber } from '../utils/mockData';
 import { Edit3, X, Save, Calendar, DollarSign, Building, FileText, CheckCircle2, Search, Loader2 } from 'lucide-react';
-import { lookupRucParaguay, formatRuc } from '../utils/rucService';
+import { formatRuc } from '../utils/rucService';
 
 interface EditInvoiceModalProps {
   isOpen: boolean;
@@ -32,7 +32,6 @@ export default function EditInvoiceModal({
   const [category, setCategory] = useState<InvoiceCategory>(invoice.category);
   const [clientName, setClientName] = useState(invoice.clientName);
   const [clientRuc, setClientRuc] = useState(invoice.clientRuc || '');
-  const [isSearchingRuc, setIsSearchingRuc] = useState(false);
   const [sucursal, setSucursal] = useState(invoice.sucursal);
   const [caja, setCaja] = useState(invoice.caja);
   const [numero, setNumero] = useState(invoice.numero);
@@ -245,25 +244,42 @@ export default function EditInvoiceModal({
                 />
                 <button
                   type="button"
-                  onClick={async () => {
-                    if (!clientRuc.trim()) return;
-                    setIsSearchingRuc(true);
-                    try {
-                      const res = await lookupRucParaguay(clientRuc.trim());
-                      if (res.success && res.razonSocial) {
-                        setClientName(res.razonSocial);
-                        if (res.ruc) setClientRuc(res.ruc);
-                      }
-                    } finally {
-                      setIsSearchingRuc(false);
+                  onClick={() => {
+                    const rawRuc = clientRuc.trim();
+                    if (!rawRuc) return;
+
+                    const normalizeDigits = (val: string) => val.replace(/\D/g, '');
+                    const normalizeWithHyphen = (val: string) => val.replace(/[^\d-]/g, '').toLowerCase();
+
+                    const cleanInputHyphen = normalizeWithHyphen(rawRuc);
+                    const cleanInputDigits = normalizeDigits(rawRuc);
+
+                    const found = clients.find((c) => {
+                      if (!c.ruc) return false;
+                      const cHyphen = normalizeWithHyphen(c.ruc);
+                      const cDigits = normalizeDigits(c.ruc);
+                      if (cHyphen && cHyphen === cleanInputHyphen) return true;
+                      if (cDigits && cDigits === cleanInputDigits) return true;
+                      const cBase = cHyphen.split('-')[0];
+                      if (cBase && cBase === cleanInputDigits) return true;
+                      const inputBase = cleanInputHyphen.split('-')[0];
+                      if (inputBase && cDigits === inputBase) return true;
+                      return false;
+                    });
+
+                    if (found) {
+                      setClientName(found.name);
+                      if (found.ruc) setClientRuc(found.ruc);
+                      setErrorMsg(null);
+                    } else {
+                      setErrorMsg(`No se encontró ningún cliente registrado con el RUC "${rawRuc}".`);
                     }
                   }}
-                  disabled={isSearchingRuc}
-                  className="px-3 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50 shrink-0"
-                  title="Consultar RUC en el padrón SET/DNIT"
+                  className="px-3 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs flex items-center gap-1.5 transition-colors cursor-pointer shrink-0"
+                  title="Buscar en clientes registrados"
                 >
-                  {isSearchingRuc ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
-                  <span>SET/DNIT</span>
+                  <Search className="w-3.5 h-3.5" />
+                  <span>Buscar en Clientes</span>
                 </button>
               </div>
             </div>

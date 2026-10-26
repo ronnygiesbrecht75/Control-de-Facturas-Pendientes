@@ -5,9 +5,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Invoice, InvoiceCategory, Client } from '../types';
-import { formatPYG, formatInvoiceNumber } from '../utils/mockData';
 import { PlusCircle, Info, FileText, Check, ChevronDown, Search, Users, X, Loader2, Sparkles } from 'lucide-react';
-import { lookupRucParaguay, formatRuc } from '../utils/rucService';
+import { formatRuc } from '../utils/rucService';
 
 interface RegistrarFacturaProps {
   onAddInvoice: (invoice: Omit<Invoice, 'id'>) => void;
@@ -38,7 +37,6 @@ export default function RegistrarFactura({ onAddInvoice, systemDate, clients = [
   const [clientCode, setClientCode] = useState<string>('');
   const [clientName, setClientName] = useState<string>('');
   const [clientRuc, setClientRuc] = useState<string>('');
-  const [isSearchingRuc, setIsSearchingRuc] = useState<boolean>(false);
   const [rucSuccessMsg, setRucSuccessMsg] = useState<string | null>(null);
   const [rucLookupAttempted, setRucLookupAttempted] = useState<boolean>(false);
   const clientRucInputRef = useRef<HTMLInputElement>(null);
@@ -128,60 +126,67 @@ export default function RegistrarFactura({ onAddInvoice, systemDate, clients = [
     }, 50);
   };
 
-  const handleLookupRuc = async () => {
+  const handleLookupRuc = () => {
     const rawRuc = clientRuc.trim();
     if (!rawRuc) {
       setNotification({
         type: 'error',
-        message: 'Ingrese un número de RUC o C.I. para realizar la búsqueda automática.'
+        message: 'Ingrese un número de RUC o C.I. para buscar en los clientes registrados.'
       });
       clientRucInputRef.current?.focus();
       return;
     }
 
-    // 1. Check if client already exists in local list
-    const cleanNum = rawRuc.replace(/[^\d-]/g, '');
-    const foundExisting = clients.find(c => c.ruc && c.ruc.replace(/[^\d-]/g, '') === cleanNum);
+    // Normalización para comparar RUC flexiblemente contra clientes registrados
+    const normalizeDigits = (val: string) => val.replace(/\D/g, '');
+    const normalizeWithHyphen = (val: string) => val.replace(/[^\d-]/g, '').toLowerCase();
+
+    const cleanInputHyphen = normalizeWithHyphen(rawRuc);
+    const cleanInputDigits = normalizeDigits(rawRuc);
+
+    const foundExisting = clients.find((c) => {
+      if (!c.ruc) return false;
+      const cHyphen = normalizeWithHyphen(c.ruc);
+      const cDigits = normalizeDigits(c.ruc);
+
+      // Coincidencia exacta con guión (ej: "80003626-3")
+      if (cHyphen && cHyphen === cleanInputHyphen) return true;
+
+      // Coincidencia de todos los dígitos (ej: "800036263")
+      if (cDigits && cDigits === cleanInputDigits) return true;
+
+      // Si el usuario escribió sin dígito verificador y el cliente registrado tiene guión (ej: "80003626")
+      const cBase = cHyphen.split('-')[0];
+      if (cBase && cBase === cleanInputDigits) return true;
+
+      // Si el usuario escribió con guión y el cliente registrado solo tiene números sin guión
+      const inputBase = cleanInputHyphen.split('-')[0];
+      if (inputBase && cDigits === inputBase) return true;
+
+      return false;
+    });
+
     if (foundExisting) {
       setClientName(foundExisting.name);
       setClientCode(foundExisting.code ? String(foundExisting.code) : '');
       setClientRuc(foundExisting.ruc || rawRuc);
-      setRucSuccessMsg(`✓ Cliente en lista local: ${foundExisting.name}`);
+      setRucSuccessMsg(`✓ Cliente: ${foundExisting.name}`);
       setNotification({
         type: 'success',
         message: `Cliente encontrado: "${foundExisting.name}" (Cód. #${foundExisting.code || '-'}).`
       });
-      sucursalInputRef.current?.focus();
-      sucursalInputRef.current?.select();
-      return;
-    }
-
-    setIsSearchingRuc(true);
-    setRucSuccessMsg(null);
-    try {
-      const res = await lookupRucParaguay(rawRuc);
-      if (res.success && res.razonSocial) {
-        setClientName(res.razonSocial);
-        if (res.ruc) setClientRuc(res.ruc);
-        setRucSuccessMsg(`✓ SET/DNIT: ${res.razonSocial} (${res.estado || 'Activo'})`);
-        setNotification({
-          type: 'success',
-          message: `Razón Social obtenida de la SET/DNIT: "${res.razonSocial}".`
-        });
-        setTimeout(() => {
-          sucursalInputRef.current?.focus();
-          sucursalInputRef.current?.select();
-        }, 50);
-      } else {
-        setNotification({
-          type: 'error',
-          message: res.error || 'No se encontró el RUC en el padrón tributario.'
-        });
-      }
-    } catch {
-      setNotification({ type: 'error', message: 'Error de red al consultar el RUC.' });
-    } finally {
-      setIsSearchingRuc(false);
+      setTimeout(() => {
+        sucursalInputRef.current?.focus();
+        sucursalInputRef.current?.select();
+      }, 50);
+    } else {
+      setRucSuccessMsg(null);
+      setNotification({
+        type: 'error',
+        message: `No se encontró ningún cliente registrado con el RUC "${rawRuc}". Regístrelo en la pestaña Clientes o verifique el número.`
+      });
+      clientRucInputRef.current?.focus();
+      clientRucInputRef.current?.select();
     }
   };
 
@@ -521,7 +526,7 @@ export default function RegistrarFactura({ onAddInvoice, systemDate, clients = [
                 </div>
               </div>
 
-              {/* Buscador de RUC Paraguay */}
+              {/* Buscador de RUC en Clientes Registrados */}
               <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center gap-1.5">
                 <input
                   id="invoice-client-ruc"
@@ -548,21 +553,16 @@ export default function RegistrarFactura({ onAddInvoice, systemDate, clients = [
                   }}
                   className="flex-1 px-2.5 py-1.5 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 rounded-lg border border-slate-300 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500 font-mono text-xs font-bold"
                   placeholder="RUC / C.I. (Opcional - ej. 80003000-1)"
-                  title="Ingrese RUC y presione Enter o Buscar para autocompletar la Razón Social"
+                  title="Ingrese RUC y presione Enter o Buscar para buscar en los clientes registrados"
                 />
                 <button
                   type="button"
                   onClick={handleLookupRuc}
-                  disabled={isSearchingRuc}
-                  className="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg text-xs flex items-center gap-1 transition-colors cursor-pointer disabled:opacity-50 shrink-0"
-                  title="Consultar RUC en el padrón SET/DNIT"
+                  className="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg text-xs flex items-center gap-1 transition-colors cursor-pointer shrink-0"
+                  title="Buscar en la lista de Clientes registrados"
                 >
-                  {isSearchingRuc ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <Search className="w-3.5 h-3.5" />
-                  )}
-                  <span>Buscar RUC</span>
+                  <Search className="w-3.5 h-3.5" />
+                  <span>Buscar en Clientes</span>
                 </button>
               </div>
 
